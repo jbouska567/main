@@ -1,0 +1,41 @@
+[user]
+    name = Josef Bouska
+    email = bow.ska@seznam.cz
+[color]
+    branch = auto
+    diff = auto
+    interactive = auto
+    status = auto
+    grep = auto
+[sendemail]
+    smtpserver=posta.szn.cz
+    smtpuser=josef.bouska
+    smtpencryption=tls
+[color "diff"]
+    old = bold red
+    new = bold green
+    meta = bold white
+[color "branch"]
+    current = bold green
+    remote = bold red
+[color "status"]
+    header = bold white
+    added = bold red
+    updated = bold green
+    changed = bold red
+    untracked = bold yellow
+    nobranch = bold magenta
+[diff]
+    tool = vimdiff
+[merge]
+    tool = vimdiff
+[difftool]
+    prompt = false
+[alias]
+    bra = branch -vva
+    l = log --decorate
+    ri = rebase -i
+    rc = rebase --continue
+    ra = rebase --abort
+    f = fetch -p
+    pr = pull --rebase
