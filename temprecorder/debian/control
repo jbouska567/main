@@ -1,0 +1,18 @@
+Source: i2c-temperature-recorder
+Section: unknown
+Priority: extra
+Maintainer: bow.ska@seznam.cz
+Build-Depends:
+ debhelper (>= 8.0.0)
+Standards-Version: 3.9.3
+
+Package: i2c-temperature-recorder
+Architecture: all
+Depends:
+ ${misc:Depends},
+ i2c-tools,
+ owfs,
+ owfs-doc,
+ ow-shell
+Description: Tool for recording temperature
+ Tool for recording temperature from 1-wire sensor through i2c bus

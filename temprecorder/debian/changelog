@@ -1,0 +1,6 @@
+i2c-temperature-recorder (1.0.0) UNRELEASED; urgency=medium
+
+  [ Josef Bouska ]
+  * Initial release
+
+ -- Josef Bouska <bow.ska@seznam.cz>  Fri, 16 Dec 2016 23:26:16 +0100
