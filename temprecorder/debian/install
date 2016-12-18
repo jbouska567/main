@@ -1,1 +1,2 @@
 plot/graph.plot /www/temprecorder/plot
+bin/record.sh /www/temprecorder/bin
