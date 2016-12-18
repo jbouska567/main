@@ -1,0 +1,5 @@
+debian/debhelper-build-stamp
+debian/files
+debian/i2c-temperature-recorder.debhelper.log
+debian/i2c-temperature-recorder.substvars
+debian/i2c-temperature-recorder/
