@@ -1,13 +1,13 @@
 i2c-temperature-recorder (1.0.1) UNRELEASED; urgency=medium
 
-  [ pi@raspberrypi ]
+  [ Josef Bouska ]
   * plot two lines
 
- -- <pi@raspberrypi>  Sun, 18 Dec 2016 20:57:25 +0100
+ -- Josef Bouska <bow.ska@seznam.cz>  Sun, 18 Dec 2016 20:57:25 +0100
 
 i2c-temperature-recorder (1.0.0) unstable; urgency=medium
 
   [ Josef Bouska ]
   * Initial release
 
- --  <pi@raspberrypi>  Sun, 18 Dec 2016 18:38:52 +0100
+ -- Josef Bouska <bow.ska@seznam.cz>  Sun, 18 Dec 2016 18:38:52 +0100
