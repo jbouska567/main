@@ -2,6 +2,7 @@ i2c-temperature-recorder (1.0.1) UNRELEASED; urgency=medium
 
   [ Josef Bouska ]
   * plot two lines
+  * vylepseni grafu
 
  -- Josef Bouska <bow.ska@seznam.cz>  Sun, 18 Dec 2016 20:57:25 +0100
 
