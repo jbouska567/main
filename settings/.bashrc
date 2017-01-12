@@ -55,6 +55,12 @@ if [ -f ~/.bash_aliases ]; then
 fi
 
 
+DEBEMAIL="bow.ska@seznam.cz"
+DEBFULLNAME="Josef Bouska"
+DEBCHANGE_AUTO_NMU=no
+
+export DEBEMAIL DEBFULLNAME DEBCHANGE_AUTO_NMU
+
 # mint-fortune
 /usr/bin/mint-fortune
 

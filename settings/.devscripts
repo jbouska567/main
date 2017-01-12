@@ -1,0 +1,3 @@
+DEBCHANGE_AUTO_NMU=no
+DEBEMAIL="bow.ska@seznam.cz"
+DEBFULLNAME="Josef Bouska"
