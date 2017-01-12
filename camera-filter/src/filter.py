@@ -16,12 +16,14 @@ from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 
 
-# TODO udelat z toho service
-# TODO debianizovat (zavislosti python-yaml, imagemagick ...)
-# todo razeni fotek z fto sestupne
-# todo zotaveni po chybe site napr.mail
+# TODO doplnit debian zavislosti
 
-# TODO vytvorit slozky log, trash a alarm, pokud neexistuji
+# TODO udelat z toho service
+# TODO pozor na posilani chyb az to bude sluzba, mohlo by se stat, ze pri nejake nezotavitelne chybe me to pekne vyspamuje!
+
+# TODO trida Configuration, ktera by ulozila nastaveni do clenskych promennych
+
+# TODO zotaveni po chybe site napr.mail
 
 # TODO zlepsit nacitani z FTP
 
@@ -107,7 +109,7 @@ def fetch_files(ftp):
     # jeste nemusi byt kompletne nahran na FTP ze ktereho cteme
     sleep(1)
     for file in ftp_list:
-        ftp.retrbinary("RETR %s" % file, open(file, "wb").write)
+        ftp.retrbinary("RETR %s" % file, open("%s/%s" % (config['main']['input_dir'], file), "wb").write)
         logger.log("retrieved %s file from ftp" % file)
         ftp.delete(file)
     sleep(1)
@@ -157,12 +159,17 @@ def send_mail(subj, text, files=None, notify=False):
     smtp.close()
 
 def process(files, mail_opt):
-    pos = files[2].find(".jpg")
-    if pos > 0:
-        diff_file = files[2][:-4] + "-diff.jpg"
+    # TODO toto by se melo provest jednou pri startu
+    input_dir = config['main']['input_dir']
+    alarm_dir = config['main']['alarm_dir']
+    trash_dir = config['main']['trash_dir']
     fuzz = config['detect_compare']['fuzz']
     zones = config['detect_compare']['zones']
     contra_zones = config['detect_compare']['contra_zones']
+
+    pos = files[2].find(".jpg")
+    if pos > 0:
+        diff_file = files[2][:-4] + "-diff.jpg"
 
     # pripravit a poslat prikaz na porovnani celeho obrazku
     cmd = "compare -metric AE -fuzz %s%% %s %s %s" % (fuzz, files[0], files[2], diff_file)
@@ -259,17 +266,14 @@ def main():
     try:
         parser = OptionParser()
         parser.add_option('--once', action='store_true', help='start once, only to process batch')
-        parser.add_option('--noftp', action='store_true', help='prevent loading files from FTP server')
-        parser.add_option('--nomail', action='store_true', help='prevent sending mail')
+        parser.add_option('--noftp', action='store_true', help='prevent loading files from FTP server (overrides config)')
+        parser.add_option('--nomail', action='store_true', help='prevent sending mail (overrides config)')
         options, args = parser.parse_args_dict()
         config_file = options['config']
         if not config_file:
             parser.print_help()
             print "Config file argument is requeired"
             return
-        once_opt = ('once' in options) and (options['once'] is True)
-        ftp_opt = not (('noftp' in options) and (options['noftp'] is True))
-        mail_opt = not (('nomail' in options) and (options['nomail'] is True))
 
         global config
         with open(config_file) as stream:
@@ -277,6 +281,14 @@ def main():
 
         global logger
         logger = Logger(config)
+
+        once_opt = ('once' in options) and (options['once'] is True)
+        ftp_opt = config['main']['ftp_opt']
+        if 'noftp' in options:
+            ftp_opt = not options['noftp']
+        mail_opt = (config['main']['mail_opt']
+        if 'nomail' in options:
+            mail_opt = not options['nomail']
 
         prev_hour = get_hour()
         stats_true = 0
@@ -315,9 +327,11 @@ def main():
                 fetch_files(ftp)
 
             # TODO lepsi prace se soubory, pres pythoni libky
-            p = subprocess.Popen(["ls -1 | grep ARC | grep -v diff | sort -r"], stdout=subprocess.PIPE, shell=True)
+            p = subprocess.Popen(["find %s -maxdepth 1 -type f | grep ARC | grep -v diff | sort -r" % config['main']['input_dir']],
+                stdout=subprocess.PIPE, shell=True)
             (output, err) = p.communicate()
             p_status = p.wait()
+
             files = output.split()
             if not files:
                 if once_opt:
@@ -346,6 +360,7 @@ def main():
 
         logger.close()
     except Exception as ex:
+        print ex
         logger.log("%s" %ex, level="ERROR")
         if mail_opt:
             send_mail('Camera ALARM: Error', "%s" % ex, notify=True)

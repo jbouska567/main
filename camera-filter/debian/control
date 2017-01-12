@@ -1,0 +1,17 @@
+Source: zoneway-camera-filter
+Section: unknown
+Priority: extra
+Maintainer: bow.ska@seznam.cz
+Build-Depends:
+ debhelper (>= 8.0.0)
+Standards-Version: 3.9.3
+
+Package: zoneway-camera-filter
+Architecture: all
+Depends:
+ ${misc:Depends},
+ imagemagick,
+ python,
+ python-yaml
+Description: Zoneway IP camera alarm filter
+ Tool for filtering false alarms from Zoneway IP camera

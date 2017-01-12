@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+case "$1" in
+    configure)
+        chown nobody:nogroup /www/camera-filter/alarm
+        chown nobody:nogroup /www/camera-filter/input
+        chown nobody:nogroup /www/camera-filter/log
+        chown nobody:nogroup /www/camera-filter/trash
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac

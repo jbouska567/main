@@ -1,7 +1,12 @@
 # main settings
 main:
   sleep_sec: 5
-  log_dir: './log'
+  log_dir: '/www/camera-filter/log'
+  input_dir: '/www/camera-filter/input'
+  alarm_dir: '/www/camera-filter/alarm'
+  trash_dir: '/www/camera-filter/trash'
+  mail_opt: false
+  ftp_opt: false
 
 # files expiration settings
 expiration:
