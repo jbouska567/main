@@ -10,6 +10,7 @@ Package: zoneway-camera-filter
 Architecture: all
 Depends:
  ${misc:Depends},
+ daemontools,
  imagemagick,
  python,
  python-yaml
