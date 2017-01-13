@@ -8,6 +8,19 @@ case "$1" in
         chown nobody:nogroup /www/camera-filter/input
         chown nobody:nogroup /www/camera-filter/log
         chown nobody:nogroup /www/camera-filter/trash
+
+        if test -e /service/camera-filter; then
+            echo "Upgrading service..."
+            cd /service/camera-filter
+            mv run.new run
+            svc -t .
+        else
+            echo "Instaling service..."
+            cd /www/camera-filter/service
+            mv run.new run
+            ln -s /www/camera-filter/service /service/camera-filter
+        fi
+
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

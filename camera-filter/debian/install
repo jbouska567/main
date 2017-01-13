@@ -1,2 +1,3 @@
 src/filter.py /www/camera-filter/bin
 conf/camera-filter.yml /www/camera-filter/conf
+service/run.new /www/camera-filter/service

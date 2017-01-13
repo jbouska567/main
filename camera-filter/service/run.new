@@ -1,0 +1,5 @@
+#!/bin/sh
+BIN="/www/camera-filter/bin/filter.py"
+CONF="/www/camera-filter/conf/camera-filter.yml"
+exec setuidgid nobody ${BIN} -f ${CONF}
+#exec ${BIN} -f ${CONF}
