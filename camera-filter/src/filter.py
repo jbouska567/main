@@ -284,11 +284,11 @@ def main():
 
         once_opt = ('once' in options) and (options['once'] is True)
         ftp_opt = config['main']['ftp_opt']
-        if 'noftp' in options:
-            ftp_opt = not options['noftp']
-        mail_opt = (config['main']['mail_opt']
-        if 'nomail' in options:
-            mail_opt = not options['nomail']
+        if 'noftp' in options and options['noftp']:
+            ftp_opt = False
+        mail_opt = config['main']['mail_opt']
+        if 'nomail' in options and options['nomail']:
+            mail_opt = False
 
         prev_hour = get_hour()
         stats_true = 0
