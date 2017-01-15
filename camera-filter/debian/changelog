@@ -1,5 +1,5 @@
-zoneway-camera-filter (1.0.0) UNRELEASED; urgency=medium
+zoneway-camera-filter (1.0.0) unstable; urgency=medium
 
   * Initial release.
 
- -- Josef Bouska <bow.ska@seznam.cz>  Thu, 12 Jan 2017 09:21:49 +0100
+ -- Josef Bouska <bow.ska@seznam.cz>  Sun, 15 Jan 2017 23:30:26 +0100
