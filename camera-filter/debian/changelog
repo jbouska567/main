@@ -1,3 +1,9 @@
+zoneway-camera-filter (1.0.1) UNRELEASED; urgency=medium
+
+  * service experiment
+
+ -- Josef Bouska <bow.ska@seznam.cz>  Sun, 15 Jan 2017 23:32:18 +0100
+
 zoneway-camera-filter (1.0.0) unstable; urgency=medium
 
   * Initial release.
