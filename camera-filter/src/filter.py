@@ -82,7 +82,7 @@ def get_hour():
 def connect_ftp(server, login, passwd):
     ftp = FTP(server)
     ftp.login(login, passwd)
-    ftp.cwd("zoneway")
+    ftp.cwd(config['ftp']['ftp_dir'])
     return ftp
 
 #TODO toto je potreba zlepsit, protoze se stava, ze se nacte seznam souboru, kdyz tam jeste nejsou

@@ -141,6 +141,7 @@ ftp:
   ftp_server: ''
   ftp_user: ''
   ftp_passwd: ''
+  ftp_dir: ''
 
 # Mail to send alarms and notification
 mail:
