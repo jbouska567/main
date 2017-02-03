@@ -1,6 +1,7 @@
 zoneway-camera-filter (1.0.1) UNRELEASED; urgency=medium
 
   * better exception handling
+  * waiting for 3 photos from ftp
 
  -- Josef Bouska <bow.ska@seznam.cz>  Fri, 03 Feb 2017 15:36:46 +0100
 

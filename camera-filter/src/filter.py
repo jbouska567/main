@@ -105,6 +105,11 @@ def fetch_files(ftp):
         ftp.voidcmd("NOOP")
 
     ftp_list = [x for x in ftp.nlst() if x[:3]=="ARC"]
+    if len(ftp_list) < 3:
+        # kamera jeste neuploadnula vsechny 3 fotky, pockame
+        # TODO obcas se ale stalo, ze 3. uz neprisla - co s tim? Pak se treba nahraje prvni
+        # z dalsi serie 3 fotek a je problem.
+        return
     # kratka pauza, jelikoz bez ni muze dojit k tomu, ze nejaky soubor z precteneho seznamu
     # jeste nemusi byt kompletne nahran na FTP ze ktereho cteme
     sleep(1)
@@ -360,8 +365,6 @@ def main():
                 logger.log("less than 3 files to compare, trying again..")
                 sleep(1)
                 continue
-            #TODO osetrit stav, kdy je mensi pocet souboru < 3, napr. se podari nahrat jen jeden,
-            # pak tri nejedou, takze se porovnaji k sobe nepatrici obrazky?
 
             logger.log("%s files to compare" % (len(files), ))
             if process(files, mail_opt):
