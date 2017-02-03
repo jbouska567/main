@@ -8,6 +8,7 @@ case "$1" in
         chown nobody:nogroup /www/camera-filter/input
         chown nobody:nogroup /www/camera-filter/log
         chown nobody:nogroup /www/camera-filter/trash
+        chown nobody:nogroup /www/camera-filter/error
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

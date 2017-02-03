@@ -15,6 +15,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 
+# TODO spusteni po startu systemu
 
 # TODO doplnit debian zavislosti
 
@@ -23,13 +24,7 @@ from email.utils import COMMASPACE, formatdate
 
 # TODO trida Configuration, ktera by ulozila nastaveni do clenskych promennych
 
-# TODO zotaveni po chybe site napr.mail
-
 # TODO zlepsit nacitani z FTP
-
-#TODO
-#2016-11-06 13:49:00: ftp connection lost: 421 No Transfer Timeout (300 seconds): closing control connection
-#2016-11-06 13:57:15: ftp connection lost: [Errno 32] Broken pipe
 
 #TODO ovladani mailem zasalnym zpet na adresu odesilatele (napr. vypinani, zapinani upozorneni, poslani statistik, atd.)
 
@@ -90,6 +85,11 @@ def connect_ftp(server, login, passwd):
 # taky stava (nevim proc), ale pak se to spatne sparuje a hned potom se donacte ten zbytek.
 # -> melo by se to pokouset nekolirat nacitat znovu dokavad nejsou 3, a pokud ne a jsou aspon 2
 # tak vratit pocet. Ten seznam ftp.nlst() by to chtelo taky seradit, protoze jich muze byt i vic nez 3.
+# TODO lepe ostrit chyby spojeni
+# zatim zname chyby
+#2016-11-06 13:49:00: ftp connection lost: 421 No Transfer Timeout (300 seconds): closing control connection
+#2016-11-06 13:57:15: ftp connection lost: [Errno 32] Broken pipe
+
 def fetch_files(ftp):
     # zkusime zda je navazane spojeni s FTP serverem
     try:
@@ -114,15 +114,6 @@ def fetch_files(ftp):
         ftp.delete(file)
     sleep(1)
 
-def send_notify(smtp, subj):
-
-    msg = MIMEMultipart()
-    msg['From'] = config['mail']['mail_from']
-    msg['To'] = config['mail']['notify_to']
-    msg['Date'] = formatdate(localtime=True)
-    msg['Subject'] = subj
-
-    smtp.sendmail(config['mail']['mail_from'], config['mail']['notify_to'], msg.as_string())
 
 def send_mail(subj, text, files=None, notify=False):
 
@@ -144,25 +135,31 @@ def send_mail(subj, text, files=None, notify=False):
             msg.attach(part)
 
     smtp = smtplib.SMTP()
-    smtp.set_debuglevel(0)
 
     smtp.connect(config['mail']['mail_server'], 587) #port 587 TLS, 25 nezabezpecene spojeni
     smtp.ehlo()     #TLS only
     smtp.starttls() #TLS only
-
     smtp.login(config['mail']['mail_from'], config['mail']['mail_from_passwd'])
+
     smtp.sendmail(config['mail']['mail_from'], config['mail']['mail_to'], msg.as_string())
 
     if notify:
-        send_notify(smtp, subj)
+        msg = MIMEMultipart()
+        msg['From'] = config['mail']['mail_from']
+        msg['To'] = config['mail']['notify_to']
+        msg['Date'] = formatdate(localtime=True)
+        msg['Subject'] = subj
+
+        smtp.sendmail(config['mail']['mail_from'], config['mail']['notify_to'], msg.as_string())
 
     smtp.close()
 
 def process(files, mail_opt):
-    # TODO toto by se melo provest jednou pri startu
+    # TODO toto by se melo provest jednou pri startu v nejake tride s nastavenim
     input_dir = config['main']['input_dir']
     alarm_dir = config['main']['alarm_dir']
     trash_dir = config['main']['trash_dir']
+    error_dir = config['main']['error_dir']
     fuzz = config['detect_compare']['fuzz']
     zones = config['detect_compare']['zones']
     contra_zones = config['detect_compare']['contra_zones']
@@ -171,43 +168,51 @@ def process(files, mail_opt):
     if pos > 0:
         diff_file = files[2][:-4] + "-diff.jpg"
 
-    # pripravit a poslat prikaz na porovnani celeho obrazku
-    cmd = "compare -metric AE -fuzz %s%% %s %s %s" % (fuzz, files[0], files[2], diff_file)
-    logger.log(cmd)
-    p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    (out, err) = p.communicate()
+    # porovnani fotek
+    try:
+        # pripravit a poslat prikaz na porovnani celeho obrazku
+        cmd = "compare -metric AE -fuzz %s%% %s %s %s" % (fuzz, files[0], files[2], diff_file)
+        logger.log(cmd)
+        p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        (out, err) = p.communicate()
 
-    # pripravit a poslat prikazy na porovnani zon
-    diff_files = ""
-    for z in zones + contra_zones:
-        # souradnice vyrezu jsou velikost XxY a levy horni roh +X+Y
-        cmd = "compare -metric AE -fuzz %s%% -extract %sx%s+%s+%s %s %s diff%s.jpg" % (
-            fuzz, z["extract"][0], z["extract"][1], z["extract"][2], z["extract"][3], files[0], files[2], z["id"])
-        z["p"] = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        (z["out"], z["err"]) = z["p"].communicate()
-        diff_files += "diff%s.jpg " % (z["id"], )
-        logger.log("zone %s: %s" % (z["id"], cmd))
+        # pripravit a poslat prikazy na porovnani zon
+        diff_files = ""
+        for z in zones + contra_zones:
+            # souradnice vyrezu jsou velikost XxY a levy horni roh +X+Y
+            cmd = "compare -metric AE -fuzz %s%% -extract %sx%s+%s+%s %s %s diff%s.jpg" % (
+                fuzz, z["extract"][0], z["extract"][1], z["extract"][2], z["extract"][3], files[0], files[2], z["id"])
+            z["p"] = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            (z["out"], z["err"]) = z["p"].communicate()
+            diff_files += "diff%s.jpg " % (z["id"], )
+            logger.log("zone %s: %s" % (z["id"], cmd))
 
-    # pockat na vysledek porovnani obrazku
-    status = p.wait()
-    diff = float(err)
+        # pockat na vysledek porovnani obrazku
+        status = p.wait()
+        diff = float(err)
 
-    # pockat na vysledky a zpracovat porovnani zon
-    diff_zones_sum = 0.0
-    diff_zones = ""
-    alarm_zones = ""
-    alarm_zones_count = 0
-    for z in zones + contra_zones:
-        z["alarm"] = False
-        z["status"] = z["p"].wait()
-        z["diff"] = float(z["err"])
-        z["area"] = z["extract"][0] * z["extract"][1]
-        z["pct_diff"] = round((z["diff"] / z["area"]) * 100, 1)
-        if z["pct_diff"] >= z["pct_thr"]:
-            z["alarm"] = True
-            alarm_zones_count += 1
-        diff_zones_sum += z["diff"]
-        diff_zones += "%s%s: %s%% (%s), " % (("! " if z["alarm"] else ""), z["id"], z["pct_diff"], z["diff"])
+        # pockat na vysledky a zpracovat porovnani zon
+        diff_zones_sum = 0.0
+        diff_zones = ""
+        alarm_zones = ""
+        alarm_zones_count = 0
+        for z in zones + contra_zones:
+            z["alarm"] = False
+            z["status"] = z["p"].wait()
+            z["diff"] = float(z["err"])
+            z["area"] = z["extract"][0] * z["extract"][1]
+            z["pct_diff"] = round((z["diff"] / z["area"]) * 100, 1)
+            if z["pct_diff"] >= z["pct_thr"]:
+                z["alarm"] = True
+                alarm_zones_count += 1
+            diff_zones_sum += z["diff"]
+            diff_zones += "%s%s: %s%% (%s), " % (("! " if z["alarm"] else ""), z["id"], z["pct_diff"], z["diff"])
+    except Exception as ex:
+        send_mail("Camera ALARM: Error Pictures", "error while comparing pictures",
+            files=[files[0], files[2], ], notify=True)
+        subprocess.call("mv %s %s %s %s %s/" % (files[0], files[1], files[2], diff_file, error_dir), shell=True)
+        subprocess.call("rm *.jpg", shell=True)
+        raise ex
 
     # oramovat a otextovat zony
     rectangles = ""
@@ -218,14 +223,21 @@ def process(files, mail_opt):
             z["extract"][2], z["extract"][3], z["extract"][2]+z["extract"][0], z["extract"][3]+z["extract"][1])
         texts += "-draw \"text %s,%s \'%s%s: %s%% (%s)\'\" " % (
             z["extract"][2] + 5, z["extract"][3] + 30, ("! " if z["alarm"] else ""), z["id"], z["pct_diff"], z["diff"])
-    cmd = "convert %s -fill none -stroke black -strokewidth 2 %s %s" % (diff_file, rectangles, diff_file)
-    p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    (out, err) = p.communicate()
-    status = p.wait()
-    cmd = "convert %s -stroke black -pointsize 30 %s %s" % (diff_file, texts, diff_file)
-    p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    (out, err) = p.communicate()
-    status = p.wait()
+    try:
+        cmd = "convert %s -fill none -stroke black -strokewidth 2 %s %s" % (diff_file, rectangles, diff_file)
+        p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        (out, err) = p.communicate()
+        status = p.wait()
+        cmd = "convert %s -stroke black -pointsize 30 %s %s" % (diff_file, texts, diff_file)
+        p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        (out, err) = p.communicate()
+        status = p.wait()
+    except Exception as ex:
+        send_mail("Camera ALARM: Error Pictures", "error while converting diff file",
+            files=[files[0], files[2], diff_file, ], notify=True)
+        subprocess.call("mv %s %s %s %s %s/" % (files[0], files[1], files[2], diff_file, error_dir), shell=True)
+        subprocess.call("rm *.jpg", shell=True)
+        raise ex
 
     # vyruseni falesnych alarmu kontra zonami
     zone_by_id = build_dict(zones, key="id")
@@ -249,11 +261,11 @@ def process(files, mail_opt):
         logger.log("! ALARM " + text)
         if mail_opt:
             send_mail(subj, text, files=[files[0], files[2], diff_file, ], notify=True)
-        subprocess.call("mv %s %s %s %s alarm/" % (files[0], files[1], files[2], diff_file), shell=True)
+        subprocess.call("mv %s %s %s %s %s/" % (files[0], files[1], files[2], diff_file, alarm_dir), shell=True)
         subprocess.call("rm %s" % (diff_files, ), shell=True)
     else:
         logger.log("False alarm, diff: %s, zones diff sum: %s\nzones diffs: %s" % (diff, diff_zones_sum, diff_zones))
-        subprocess.call("mv %s %s %s %s trash/" % (files[0], files[1], files[2], diff_file), shell=True)
+        subprocess.call("mv %s %s %s %s %s/" % (files[0], files[1], files[2], diff_file, trash_dir), shell=True)
         subprocess.call("rm %s" % (diff_files, ), shell=True)
         result = False
 
@@ -263,43 +275,45 @@ def process(files, mail_opt):
 def main():
     ftp_opt = False
     mail_opt = False
-    try:
-        parser = OptionParser()
-        parser.add_option('--once', action='store_true', help='start once, only to process batch')
-        parser.add_option('--noftp', action='store_true', help='prevent loading files from FTP server (overrides config)')
-        parser.add_option('--nomail', action='store_true', help='prevent sending mail (overrides config)')
-        options, args = parser.parse_args_dict()
-        config_file = options['config']
-        if not config_file:
-            parser.print_help()
-            print "Config file argument is requeired"
-            return
 
-        global config
-        with open(config_file) as stream:
-            config = yaml.load(stream)
+    parser = OptionParser()
+    parser.add_option('--once', action='store_true', help='start once, only to process batch')
+    parser.add_option('--noftp', action='store_true', help='prevent loading files from FTP server (overrides config)')
+    parser.add_option('--nomail', action='store_true', help='prevent sending mail (overrides config)')
+    options, args = parser.parse_args_dict()
+    config_file = options['config']
+    if not config_file:
+        parser.print_help()
+        print "Config file argument is requeired"
+        return
 
-        global logger
-        logger = Logger(config)
+    global config
+    with open(config_file) as stream:
+        config = yaml.load(stream)
 
-        once_opt = ('once' in options) and (options['once'] is True)
-        ftp_opt = config['main']['ftp_opt']
-        if 'noftp' in options and options['noftp']:
-            ftp_opt = False
-        mail_opt = config['main']['mail_opt']
-        if 'nomail' in options and options['nomail']:
-            mail_opt = False
+    global logger
+    logger = Logger(config)
 
-        prev_hour = get_hour()
-        stats_true = 0
-        stats_false = 0
+    once_opt = ('once' in options) and (options['once'] is True)
+    ftp_opt = config['main']['ftp_opt']
+    if 'noftp' in options and options['noftp']:
+        ftp_opt = False
+    mail_opt = config['main']['mail_opt']
+    if 'nomail' in options and options['nomail']:
+        mail_opt = False
 
-        if ftp_opt:
-            ftp = connect_ftp(config['ftp']['ftp_server'],
-                config['ftp']['ftp_user'], config['ftp']['ftp_passwd'])
+    prev_hour = get_hour()
+    stats_true = 0
+    stats_false = 0
 
-        while(True):
+    if ftp_opt:
+        ftp = connect_ftp(config['ftp']['ftp_server'],
+            config['ftp']['ftp_user'], config['ftp']['ftp_passwd'])
 
+    err_count = 0
+
+    while(err_count < 5):
+        try:
             hour = get_hour()
             if prev_hour != hour:
                 # logrotate a expirace starych souboru o pulnoci
@@ -314,13 +328,15 @@ def main():
                 p = subprocess.Popen(["du -sh", ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                 (out, err) = p.communicate()
                 status = p.wait()
-                text = "Hourly statistics:\nALARMS count: %s\nFalse alarms count: %s\n\nTotal size of dir:%s" % (stats_true, stats_false, out)
+                text = ("Hourly statistics:\nALARMS count: %s\nFalse alarms count: %s\n\nError count: %s\n\nTotal size of dir: %s" %
+                    (stats_true, stats_false, err_count, out))
                 logger.log(text)
                 if mail_opt:
                     send_mail("Camera stats", text)
+
                 stats_true = 0
                 stats_false = 0
-
+                err_count = 0
                 prev_hour = hour
 
             if ftp_opt:
@@ -355,20 +371,27 @@ def main():
 
             sleep(1)
 
-        if ftp_opt:
-            ftp.quit()
+        except Exception as ex:
+            print ex
+            traceback.print_exc(file=stdout)
+            logger.log("%s" %ex, level="ERROR")
+            traceback.print_exc(file=logger.log_file)
+            if mail_opt:
+                try:
+                    send_mail('Camera ALARM: Error', "%s" % ex, notify=True)
+                except Exception as ex:
+                    logger.log("sending error mail failed");
+                    logger.log("%s" %ex, level="ERROR")
+            err_count += 1
+            logger.log("error counter %s" % err_count);
+            sleep(err_count)
 
-        logger.close()
-    except Exception as ex:
-        print ex
-        logger.log("%s" %ex, level="ERROR")
-        if mail_opt:
-            send_mail('Camera ALARM: Error', "%s" % ex, notify=True)
-        traceback.print_exc(file=logger.log_file)
-        traceback.print_exc(file=stdout)
-        if ftp_opt:
-            ftp.quit()
-        logger.close()
+    logger.log("Too many errors in one hour, giving up...");
+
+    if ftp_opt:
+        ftp.quit()
+
+    logger.close()
 
 if __name__ == "__main__":
     exit(main())

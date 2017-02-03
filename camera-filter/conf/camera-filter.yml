@@ -5,6 +5,7 @@ main:
   input_dir: '/www/camera-filter/input'
   alarm_dir: '/www/camera-filter/alarm'
   trash_dir: '/www/camera-filter/trash'
+  error_dir: '/www/camera-filter/error'
   mail_opt: false
   ftp_opt: false
 
