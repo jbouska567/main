@@ -7,8 +7,8 @@ from PIL import Image
 
 # Parameters
 learning_rate = 0.001
-training_epochs = 10
-batch_size = 1 #TODO davkovac dat
+training_epochs = 1
+batch_size = 50
 display_step = 1
 
 # input image parameters
@@ -41,10 +41,10 @@ for filename in files:
   # /home/pepa/projects/tensorflow/pokus1/data/true/ARC20170318095401-diff.pn
   if filename[43] == 'f': #false
     input_labels.append(np.array((1, 0))) #negative alarm
-    print ("%s (0)", filename)
+    print ("%s (0)" % (filename, ))
   else:
     input_labels.append(np.array((0, 1))) #positive alarm
-    print ("%s (1)", filename)
+    print ("%s (1)" % (filename, ))
   image = Image.open(filename)
   #image = image.resize((image_size_x, image_size_y))
   input_images.append(np.array(image))
@@ -57,8 +57,7 @@ train_labels = np.array(input_labels)
 print ("Num examples: %s", n_examples)
 
 # tf Graph input
-# FIXME float nebo bool?
-# TODO batch_size misto n_examples
+# FIXME float nebo int?
 x = tf.placeholder(tf.float32, shape=(None, n_input))
 y = tf.placeholder(tf.float32, shape=(None, n_classes))
 
@@ -92,7 +91,7 @@ pred = multilayer_perceptron(x, weights, biases)
 # Define loss and optimizer
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
-#TODO vyzkouset
+#TODO vyzkouset jine optimalizace
 #labels = tf.to_int64(labels)
 #cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
 #  logits=pred, labels=y, name='xentropy')
@@ -110,20 +109,19 @@ with tf.Session() as sess:
     # Training cycle
     for epoch in range(training_epochs):
         avg_cost = 0.
-        # TODO batch
-        #total_batch = int(mnist.train.num_examples/batch_size)
-        total_batch = 1
+        index_in_epoch = 0
+        total_batches = int(n_examples/batch_size)
+        # pokud data nejsou delitelna davkou, chcem pouzit i zbytek
+        if n_examples > total_batches * batch_size:
+            total_batches += 1
         # Loop over all batches
-        for i in range(total_batch):
-            # TODO batch
-            #batch_x, batch_y = mnist.train.next_batch(batch_size)
-            # Run optimization op (backprop) and cost op (to get loss value)
-            #_, c = sess.run([optimizer, cost], feed_dict={x: batch_x,
-            #                                              y: batch_y})
-            _, c = sess.run([optimizer, cost], feed_dict={x: train_images,
-                                                          y: train_labels})
+        for i in range(total_batches):
+            _, c = sess.run([optimizer, cost], feed_dict={x: train_images[index_in_epoch : index_in_epoch+batch_size],
+                                                          y: train_labels[index_in_epoch : index_in_epoch+batch_size]})
             # Compute average loss
-            avg_cost += c / total_batch
+            avg_cost += c / total_batches
+            index_in_epoch += batch_size
+
         # Display logs per epoch step
         if epoch % display_step == 0:
             print("Epoch:", '%04d' % (epoch+1), "cost=", \
@@ -132,18 +130,20 @@ with tf.Session() as sess:
 
     # Test model
     correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
-    #correct_prediction = tf.nn.in_top_k(tf.argmax(pred, 1), tf.argmax(y, 1), 1)
     # Calculate accuracy
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    #correct_prediction = tf.nn.in_top_k(tf.argmax(pred, 1), tf.argmax(y, 1), 1)
     #accuracy = tf.reduce_sum(tf.cast(correct_prediction, tf.float32))
     # TODO testovaci davka misto trenovaci
     print("Accuracy:", accuracy.eval({x: train_images, y: train_labels}))
-
-    # TODO ulozeni modelu
 
     # TODO zkouska na konkretnim obrazku
     #cl = pred.eval(feed_dict={x: [mnist.test.images[0]]})
     for n, train_image in enumerate(train_images):
         cl = sess.run(tf.argmax(pred, 1), feed_dict={x: [train_image]})
         print (cl, train_labels[n])
+
+    # Create a saver for writing training checkpoints.
+    saver = tf.train.Saver()
+    saver.save(sess, 'model', global_step=training_epochs)
 
