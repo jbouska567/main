@@ -7,7 +7,7 @@ from PIL import Image
 
 # Parameters
 learning_rate = 0.001
-training_epochs = 1
+training_epochs = 50
 batch_size = 50
 display_step = 1
 
@@ -17,10 +17,11 @@ image_size_y = 540 #270
 channels = 1 # R,G,B = 3 B/W = 1
 
 # Network Parameters
-n_hidden_1 = 256 # 1st layer number of features
-n_hidden_2 = 256 # 2nd layer number of features
+n_hidden_1 = 16 # 1st layer number of features #24
+n_hidden_2 = 8 # 2nd layer number of features  #16
 n_input = image_size_x * image_size_y * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
+n_test_pct = 50 # procent testovacich dat
 
 # Input data
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
@@ -36,6 +37,8 @@ p = subprocess.Popen(["find %s -type f | sort -R" % (data_path)], stdout=subproc
 p_status = p.wait()
 files = output.split()
 n_examples = len(files)
+n_test = int(n_examples / 100) * n_test_pct
+n_train = n_examples - n_test
 for filename in files:
   # TODO udelat lepe rozpoznani true/false
   # /home/pepa/projects/tensorflow/pokus1/data/true/ARC20170318095401-diff.pn
@@ -50,11 +53,16 @@ for filename in files:
   input_images.append(np.array(image))
 # TODO rozdelit vstupni data na trenovaci a testovaci mnozinu
 # TODO nahodne zamichat pro kazdou epochu
-train_images = np.array(input_images)
-train_images = train_images.reshape(n_examples, n_input)
-train_labels = np.array(input_labels)
-#train_labels = train_labels.reshape(n_examples, n_classes) # neni treba, jiz je spravne
+train_images = np.array(input_images[0:n_train])
+train_images = train_images.reshape(n_train, n_input)
+train_labels = np.array(input_labels[0:n_train])
+test_images = np.array(input_images[0:n_test])
+test_images = test_images.reshape(n_test, n_input)
+test_labels = np.array(input_labels[0:n_test])
+#train_labels = train_labels.reshape(n_train, n_classes) # neni treba, jiz je spravne
 print ("Num examples: %s", n_examples)
+print ("train images: %s", n_train)
+print ("test images: %s", n_test)
 
 # tf Graph input
 # FIXME float nebo int?
@@ -110,9 +118,9 @@ with tf.Session() as sess:
     for epoch in range(training_epochs):
         avg_cost = 0.
         index_in_epoch = 0
-        total_batches = int(n_examples/batch_size)
+        total_batches = int(n_train/batch_size)
         # pokud data nejsou delitelna davkou, chcem pouzit i zbytek
-        if n_examples > total_batches * batch_size:
+        if n_train > total_batches * batch_size:
             total_batches += 1
         # Loop over all batches
         for i in range(total_batches):
@@ -135,13 +143,14 @@ with tf.Session() as sess:
     #correct_prediction = tf.nn.in_top_k(tf.argmax(pred, 1), tf.argmax(y, 1), 1)
     #accuracy = tf.reduce_sum(tf.cast(correct_prediction, tf.float32))
     # TODO testovaci davka misto trenovaci
-    print("Accuracy:", accuracy.eval({x: train_images, y: train_labels}))
+    print("Accuracy on train images:", accuracy.eval({x: train_images, y: train_labels}))
+    print("Accuracy on test images:", accuracy.eval({x: test_images, y: test_labels}))
 
     # TODO zkouska na konkretnim obrazku
     #cl = pred.eval(feed_dict={x: [mnist.test.images[0]]})
-    for n, train_image in enumerate(train_images):
-        cl = sess.run(tf.argmax(pred, 1), feed_dict={x: [train_image]})
-        print (cl, train_labels[n])
+    #for n, train_image in enumerate(train_images):
+    #    cl = sess.run(tf.argmax(pred, 1), feed_dict={x: [train_image]})
+    #    print (cl, train_labels[n])
 
     # Create a saver for writing training checkpoints.
     saver = tf.train.Saver()
