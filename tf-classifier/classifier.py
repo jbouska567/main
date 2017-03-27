@@ -4,102 +4,121 @@ import subprocess
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+import multilayer_perceptron as mp
+from random import shuffle
 
 # Parameters
 learning_rate = 0.001
-training_epochs = 50
+training_epochs = 10
 batch_size = 50
-display_step = 1
+eval_step = 10
+save_step = 100
 
 # input image parameters
-image_size_x = 960 #480
-image_size_y = 540 #270
+FUZZ = 12
+image_size_x = 1920 / 4
+image_size_y = 1080 / 4
 channels = 1 # R,G,B = 3 B/W = 1
 
 # Network Parameters
-n_hidden_1 = 16 # 1st layer number of features #24
-n_hidden_2 = 8 # 2nd layer number of features  #16
+# TODO jaka je optimalni velikost pro danou ulohu a velikost dat?
+n_hidden_1 = 64 # 1st layer number of features #24
+n_hidden_2 = 32 # 2nd layer number of features  #16
 n_input = image_size_x * image_size_y * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
-n_test_pct = 50 # procent testovacich dat
 
 # Input data
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
 # slozky zacinajici na t (jako true) jsou brany jako pozitivni klasifikace
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
-data_path = "~/projects/tensorflow/pokus1/data"
+data_path = "/home/pepa/projects/camera_filter/learning/diff%s-%s" % (FUZZ, image_size_x)
+n_test_pct = 25 # procent testovacich dat
+
+
+def get_files(path):
+    print "path = %s" % (path, )
+    p = subprocess.Popen(["find %s -type f | sort -R" % (path)], stdout=subprocess.PIPE, shell=True)
+    (output, err) = p.communicate()
+    p_status = p.wait()
+    files = output.split()
+    n_files = len(files)
+    n_test = int(n_files / 100) * n_test_pct
+    n_train = n_files - n_test
+    train_files = files[:n_train]
+    test_files = files[n_train:]
+    print "Num files = %s" % (n_files, )
+    print "Train images = %s" % (n_train, )
+    print "Test images = %s" % (n_test, )
+    return train_files, test_files
+
+def get_images_labels(files):
+    images = []
+    labels = []
+    for filename in files:
+        # podle prviho pismena posledni slozky souboru pozname true/false
+        if filename.split("/")[-2:][0][0] == 'f': #false
+            #TODO vahy pro true false?
+            labels.append(np.array((1, 0))) #negative alarm
+            #print ("%s (0)" % (filename, ))
+        else:
+            labels.append(np.array((0, 2))) #positive alarm (ma vyssi vahu?)
+            #print ("%s (1)" % (filename, ))
+        image = Image.open(filename)
+        # TODO if image.size <> network size?
+        #image = image.resize((image_size_x, image_size_y))
+        images.append(np.array(image))
+    np_images = np.array(images)
+    np_images = np_images.reshape(len(images), n_input)
+    np_labels = np.array(labels)
+    return np_images, np_labels
 
 # nacist data
-input_images = []
-input_labels = []
-p = subprocess.Popen(["find %s -type f | sort -R" % (data_path)], stdout=subprocess.PIPE, shell=True)
-(output, err) = p.communicate()
-p_status = p.wait()
-files = output.split()
-n_examples = len(files)
-n_test = int(n_examples / 100) * n_test_pct
-n_train = n_examples - n_test
-for filename in files:
-  # TODO udelat lepe rozpoznani true/false
-  # /home/pepa/projects/tensorflow/pokus1/data/true/ARC20170318095401-diff.pn
-  if filename[43] == 'f': #false
-    input_labels.append(np.array((1, 0))) #negative alarm
-    print ("%s (0)" % (filename, ))
-  else:
-    input_labels.append(np.array((0, 1))) #positive alarm
-    print ("%s (1)" % (filename, ))
-  image = Image.open(filename)
-  #image = image.resize((image_size_x, image_size_y))
-  input_images.append(np.array(image))
+#   p = subprocess.Popen(["find %s -type f | sort -R" % (data_path)], stdout=subprocess.PIPE, shell=True)
+#   (output, err) = p.communicate()
+#   p_status = p.wait()
+#   files = output.split()
+#   input_images = []
+#   input_labels = []
+#   n_examples = len(files)
+#   n_test = int(n_examples / 100) * n_test_pct
+#   n_train = n_examples - n_test
+#   for filename in files:
+#     # TODO udelat lepe rozpoznani true/false
+#     # /home/pepa/projects/tensorflow/pokus1/data/true/ARC20170318095401-diff.pn
+#     if filename[43] == 'f': #false
+#TODO vahy true false?
+#       input_labels.append(np.array((1, 0))) #negative alarm
+#       #print ("%s (0)" % (filename, ))
+#     else:
+#       input_labels.append(np.array((0, 1))) #positive alarm
+#       #print ("%s (1)" % (filename, ))
+#     image = Image.open(filename)
+#     #image = image.resize((image_size_x, image_size_y))
+#     input_images.append(np.array(image))
 # TODO rozdelit vstupni data na trenovaci a testovaci mnozinu
 # TODO nahodne zamichat pro kazdou epochu
-train_images = np.array(input_images[0:n_train])
-train_images = train_images.reshape(n_train, n_input)
-train_labels = np.array(input_labels[0:n_train])
-test_images = np.array(input_images[0:n_test])
-test_images = test_images.reshape(n_test, n_input)
-test_labels = np.array(input_labels[0:n_test])
+#   train_images = np.array(input_images[:n_train])
+#   train_images = train_images.reshape(n_train, n_input)
+#   train_labels = np.array(input_labels[:n_train])
+#   test_images = np.array(input_images[n_train:])
+#   test_images = test_images.reshape(n_test, n_input)
+#   test_labels = np.array(input_labels[n_train:])
 #train_labels = train_labels.reshape(n_train, n_classes) # neni treba, jiz je spravne
-print ("Num examples: %s", n_examples)
-print ("train images: %s", n_train)
-print ("test images: %s", n_test)
 
 # tf Graph input
 # FIXME float nebo int?
 x = tf.placeholder(tf.float32, shape=(None, n_input))
 y = tf.placeholder(tf.float32, shape=(None, n_classes))
 
-# Create model
-def multilayer_perceptron(x, weights, biases):
-    # Hidden layer with RELU activation
-    layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
-    layer_1 = tf.nn.relu(layer_1)
-    # Hidden layer with RELU activation
-    layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
-    layer_2 = tf.nn.relu(layer_2)
-    # Output layer with linear activation
-    out_layer = tf.matmul(layer_2, weights['out']) + biases['out']
-    return out_layer
-
-# Store layers weight & bias
-weights = {
-    'h1': tf.Variable(tf.random_normal([n_input, n_hidden_1])),
-    'h2': tf.Variable(tf.random_normal([n_hidden_1, n_hidden_2])),
-    'out': tf.Variable(tf.random_normal([n_hidden_2, n_classes]))
-}
-biases = {
-    'b1': tf.Variable(tf.random_normal([n_hidden_1])),
-    'b2': tf.Variable(tf.random_normal([n_hidden_2])),
-    'out': tf.Variable(tf.random_normal([n_classes]))
-}
 
 # Construct model
-pred = multilayer_perceptron(x, weights, biases)
+multilayer_perceptron = mp.MultilayerPerceptron(n_input, n_hidden_1, n_hidden_2, n_classes)
+pred = multilayer_perceptron.get_model(x)
 
+#TODO vyzkouset jine optimalizace
 # Define loss and optimizer
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
-#TODO vyzkouset jine optimalizace
 #labels = tf.to_int64(labels)
 #cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
 #  logits=pred, labels=y, name='xentropy')
@@ -114,8 +133,24 @@ init = tf.global_variables_initializer()
 with tf.Session() as sess:
     sess.run(init)
 
+    # Test model
+    correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
+    # Calculate accuracy
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    #correct_prediction = tf.nn.in_top_k(tf.argmax(pred, 1), tf.argmax(y, 1), 1)
+    #accuracy = tf.reduce_sum(tf.cast(correct_prediction, tf.float32))
+
+    # Create a saver for writing training checkpoints.
+    saver = tf.train.Saver()
+
+    train_files, test_files = get_files(data_path)
+    n_train = len(train_files)
+    test_images, test_labels = get_images_labels(test_files)
+
     # Training cycle
     for epoch in range(training_epochs):
+        shuffle(train_files)
+        train_images, train_labels = get_images_labels(train_files)
         avg_cost = 0.
         index_in_epoch = 0
         total_batches = int(n_train/batch_size)
@@ -131,28 +166,43 @@ with tf.Session() as sess:
             index_in_epoch += batch_size
 
         # Display logs per epoch step
-        if epoch % display_step == 0:
-            print("Epoch:", '%04d' % (epoch+1), "cost=", \
-                "{:.9f}".format(avg_cost))
+        print("Epoch:", '%04d' % (epoch+1), "cost=", \
+            "{:.9f}".format(avg_cost))
+        if epoch % eval_step == 0:
+            print("Accuracy on train images:", accuracy.eval({x: train_images, y: train_labels}))
+            print("Accuracy on test images:", accuracy.eval({x: test_images, y: test_labels}))
+        if epoch % save_step == 0:
+            saver.save(sess, 'model', global_step=epoch)
     print("Optimization Finished!")
 
-    # Test model
-    correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
-    # Calculate accuracy
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-    #correct_prediction = tf.nn.in_top_k(tf.argmax(pred, 1), tf.argmax(y, 1), 1)
-    #accuracy = tf.reduce_sum(tf.cast(correct_prediction, tf.float32))
-    # TODO testovaci davka misto trenovaci
-    print("Accuracy on train images:", accuracy.eval({x: train_images, y: train_labels}))
-    print("Accuracy on test images:", accuracy.eval({x: test_images, y: test_labels}))
+    saver.save(sess, 'model')
 
     # TODO zkouska na konkretnim obrazku
     #cl = pred.eval(feed_dict={x: [mnist.test.images[0]]})
-    #for n, train_image in enumerate(train_images):
-    #    cl = sess.run(tf.argmax(pred, 1), feed_dict={x: [train_image]})
-    #    print (cl, train_labels[n])
+    print "Prediction mismatches in test data:"
+    dt = 0
+    df = 0
+    mt = 0
+    mf = 0
+    for n, test_image in enumerate(test_images):
+        cl = sess.run(tf.argmax(pred, 1), feed_dict={x: [test_image]})
+        # tf.argmax(pred, 1) vrati index vyssiho cisla z pole vystupnich neuronu, tedy 0 pro false alarm a 1 pro true alarm
+        # v test_labels[n] je (True, False) pro false alarm a (False, True) pro true alarm
+        label = 1 if test_labels[n][1] else 0
+        #print cl, test_labels[n], label
+        if label:
+            dt = dt + 1
+        else:
+            df = df + 1
+        if cl != label:
+            print "Prediction: %s, label: %s, test file: %s" % (cl, label, test_files[n])
+            if label:
+                mt = mt + 1
+            else:
+                mf = mf + 1
+    print "%s/%s true and %s/%s false mismatches" % (mt, dt, mf, df)
 
-    # Create a saver for writing training checkpoints.
-    saver = tf.train.Saver()
-    saver.save(sess, 'model', global_step=training_epochs)
+    train_images, train_labels = get_images_labels(train_files)
+    print("Accuracy on train images:", accuracy.eval({x: train_images, y: train_labels}))
+    print("Accuracy on test images:", accuracy.eval({x: test_images, y: test_labels}))
 
