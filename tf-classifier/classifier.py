@@ -6,24 +6,26 @@ import numpy as np
 from PIL import Image
 import multilayer_perceptron as mp
 from random import shuffle
+from time import sleep
 
 # Parameters
 learning_rate = 0.001
-training_epochs = 10
+training_epochs = 10000
 batch_size = 50
 eval_step = 10
 save_step = 100
 
+# zatim nejlepsi vysledky mi dava obrazek/10, FUZZ 10, sit 1024x32
 # input image parameters
-FUZZ = 12
-image_size_x = 1920 / 4
-image_size_y = 1080 / 4
+FUZZ = 10
+image_size_x = 1920 / 10
+image_size_y = 1080 / 10
 channels = 1 # R,G,B = 3 B/W = 1
 
 # Network Parameters
 # TODO jaka je optimalni velikost pro danou ulohu a velikost dat?
-n_hidden_1 = 64 # 1st layer number of features #24
-n_hidden_2 = 32 # 2nd layer number of features  #16
+n_hidden_1 = 256 # 1st layer number of features #24
+n_hidden_2 = 16 # 2nd layer number of features  #16
 n_input = image_size_x * image_size_y * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
 
@@ -32,7 +34,7 @@ n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vyst
 # slozky zacinajici na t (jako true) jsou brany jako pozitivni klasifikace
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
 data_path = "/home/pepa/projects/camera_filter/learning/diff%s-%s" % (FUZZ, image_size_x)
-n_test_pct = 25 # procent testovacich dat
+n_test_pct = 10 # procent testovacich dat
 
 
 def get_files(path):
@@ -147,9 +149,12 @@ with tf.Session() as sess:
     n_train = len(train_files)
     test_images, test_labels = get_images_labels(test_files)
 
+    best_acc = 0
     # Training cycle
     for epoch in range(training_epochs):
         shuffle(train_files)
+        # TODO nejak se mi nelibi ze pro kazdou epochu musim znovu nacitat obrazky (ale zase to setri pamet)
+        # je to tu hlavne kvuli moznosti zamichat testovaci data pro kazdou epochu
         train_images, train_labels = get_images_labels(train_files)
         avg_cost = 0.
         index_in_epoch = 0
@@ -169,12 +174,20 @@ with tf.Session() as sess:
         print("Epoch:", '%04d' % (epoch+1), "cost=", \
             "{:.9f}".format(avg_cost))
         if epoch % eval_step == 0:
-            print("Accuracy on train images:", accuracy.eval({x: train_images, y: train_labels}))
-            print("Accuracy on test images:", accuracy.eval({x: test_images, y: test_labels}))
+            train_acc = accuracy.eval({x: train_images, y: train_labels})
+            test_acc = accuracy.eval({x: test_images, y: test_labels})
+            print("Accuracy on train images:", train_acc)
+            print("Accuracy on test images:", test_acc)
+            if train_acc > best_acc:
+                best_acc = train_acc
+                saver.save(sess, 'model', global_step=epoch)
         if epoch % save_step == 0:
             saver.save(sess, 'model', global_step=epoch)
+        # TODO toto je tu kvuli snizeni vytizeni procesoru
+        sleep(1)
     print("Optimization Finished!")
 
+    # TODO ukladat do nazvu modelu parametry
     saver.save(sess, 'model')
 
     # TODO zkouska na konkretnim obrazku
