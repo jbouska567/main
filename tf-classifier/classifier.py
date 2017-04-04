@@ -15,17 +15,18 @@ import sys
 # zahrnout informace i z puvodni fotky pred spocitanim rozdilu (napr. podstatne informace
 # o jasu cele sceny, tedy noc/den apod..)
 # -> to vede na lepsi predzpracovani, vcetne clusterizace
+# napr. c/b fotku o stejne velikosti jako clusterovana data
 
 # Parameters
 learning_rate = 0.0001
-training_epochs = 1000
+training_epochs = 200
 batch_size = 50
 eval_step = 10
 save_step = 500
 
 # Nejednoznacnost pri urcovani rozdilu v obrazku. Cim vyssi cislo, tim mene rozdilu
 # Musi pro to byt predpocitana data
-FUZZ = 10
+FUZZ = 12
 # Delitel velikosti obrazku. Kolikrat se obrazek zmensi
 # Musi pro to byt predpocitana data
 image_div = 2
@@ -33,6 +34,7 @@ image_div = 2
 # pocet rozdilnych pixelu a na vstup site pujde az toto cislo. V podstate tim zmensime
 # pocet vstupu site, bez toho aby se ztratilo tolik informace jako pri prostem zmenseni obrazku
 cluster_size = 10
+
 # input image parameters
 image_size_x = 1920 / image_div
 image_size_y = 1080 / image_div
@@ -49,8 +51,8 @@ n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vyst
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
 # slozky zacinajici na t (jako true) jsou brany jako pozitivni klasifikace
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
-data_path = "/home/pepa/projects/camera_filter/learning/diff%s-%s" % (FUZZ, image_size_x)
-n_test_pct = 50 # procent testovacich dat
+data_path = "/home/pepa/projects/camera_filter/learning/diff-f%s-%s" % (FUZZ, image_size_x)
+n_test_pct = 25 # procent testovacich dat
 
 model_name = "model-%s-%s-%s-%s-%s" % (FUZZ, image_div, cluster_size, n_hidden_1, n_hidden_2)
 
@@ -59,7 +61,7 @@ y = tf.placeholder(tf.int64, shape=(None))
 
 def get_files(path):
     print "path = %s" % (path, )
-    p = subprocess.Popen(["find %s -type f | sort -R" % (path)], stdout=subprocess.PIPE, shell=True)
+    p = subprocess.Popen(["find %s -type f | grep '.pp' | sort -R" % (path)], stdout=subprocess.PIPE, shell=True)
     (output, err) = p.communicate()
     p_status = p.wait()
     files = output.split()
@@ -78,7 +80,11 @@ def get_images_labels(files):
     images = []
     labels = []
     for filename in files:
-        image, label = pi.read_preprocess_image(filename, cluster_size)
+        #image = pi.read_preprocess_image(filename, cluster_size)
+        f = open(filename, "rb")
+        image = np.fromfile(f, dtype=np.int16)
+        f.close()
+        label = pi.get_image_label(filename)
         images.append(image)
         labels.append(label)
     np_images = np.array(images)
@@ -187,9 +193,6 @@ def main(argv):
                 else:
                     mf = mf + 1
         print "%s/%s true and %s/%s false mismatches" % (mt, dt, mf, df)
-
-        #train_images, train_labels = get_images_labels(train_files)
-        print("Accuracy on train images:", accuracy.eval({x: train_images, y: train_labels}))
 
 if __name__ == "__main__":
     main(sys.argv[1:])

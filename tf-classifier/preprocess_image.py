@@ -28,11 +28,6 @@ def get_clustered_data(image, cluster_size):
     return sum_chunk(sum_chunk(image, cluster_size, axis=0), cluster_size, axis=1)
 
 def read_preprocess_image(filename, cluster_size):
-    label = 1 #positive alarm
-    # podle prviho pismena posledni slozky souboru pozname true/false
-    if filename.split("/")[-2:][0][0] == 'f': #false
-        label = 0 #negative alarm
-
     #image = Image.open(filename)
     #image = np.array(Image.open(filename))
     # !!! v numpy je bug pri konvertu z PIL b/w image do numpy.array
@@ -51,4 +46,12 @@ def read_preprocess_image(filename, cluster_size):
 
     #np.savetxt(filename.split("/")[-1:][0] + ".preprocessed1-5", image, fmt='%d')
 
-    return image, label
+    return image
+
+def get_image_label(filename):
+    label = 1 #positive alarm
+    # podle prviho pismena posledni slozky souboru pozname true/false
+    if filename.split("/")[-2:][0][0] == 'f': #false
+        label = 0 #negative alarm
+    return label
+
