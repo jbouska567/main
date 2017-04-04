@@ -5,27 +5,27 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 import multilayer_perceptron as mp
-from preprocess_image import read_preprocess_image
+import preprocess_image as pi
 
-#TODO dodelat do testeru clusterovani (udelat moduly)
 
 # input image parameters
-FUZZ = 10
+FUZZ = 12
 image_div = 2
 cluster_size = 10
+
 image_size_x = 1920 / image_div
 image_size_y = 1080 / image_div
 channels = 1
 
 # Network Parameters
-n_hidden_1 = 512 # 1st layer number of features #24
-n_hidden_2 = 128 # 2nd layer number of features  #16
+n_hidden_1 = 128 # 1st layer number of features #24
+n_hidden_2 = 64 # 2nd layer number of features  #16
 n_input = (image_size_x / cluster_size) * (image_size_y / cluster_size) * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
 
-data_path = "/home/pepa/projects/camera_filter/learning/diff%s-%s" % (FUZZ, image_size_x)
+data_path = "/home/pepa/projects/camera_filter/learning/diff-f%s-%s" % (FUZZ, image_size_x)
 model_name = "model-%s-%s-%s-%s-%s" % (FUZZ, image_div, cluster_size, n_hidden_1, n_hidden_2)
-model_name = model_name + "-140"
+model_name = model_name + ""
 
 x = tf.placeholder(tf.float32, shape=(None, n_input))
 
@@ -44,7 +44,7 @@ with tf.Session() as sess:
     print "opening model %s" % model_name
     saver.restore(sess, "./"+model_name)
 
-    p = subprocess.Popen(["find %s -type f" % (data_path)], stdout=subprocess.PIPE, shell=True)
+    p = subprocess.Popen(["find %s -type f | grep '.png' | sort" % (data_path)], stdout=subprocess.PIPE, shell=True)
     (output, err) = p.communicate()
     p_status = p.wait()
     files = output.split()
@@ -54,7 +54,9 @@ with tf.Session() as sess:
     negative_mismatch = 0
     print "Prediction mismatches:"
     for filename in files:
-        npi, label = read_preprocess_image(filename, cluster_size)
+        # TODO toto by melo testovat primo obrazek z kamery, nikoliv diff
+        npi = pi.read_preprocess_image(filename, cluster_size)
+        label = pi.get_image_label(filename)
         npi = npi.reshape(n_input)
 
         #print "klasifikace: %s, label: %s, image: " % (cl, label, filename)
