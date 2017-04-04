@@ -1,39 +1,48 @@
 #!/usr/bin/env python
 
+import time
 import subprocess
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 import multilayer_perceptron as mp
+import preprocess_image as pi
 from random import shuffle
 from time import sleep
 import sys
 
 #TODO napad:
-# dalo by se rozdelit obrazek na sekce a v tech spocitat pocet rozdilnych pixelu.
-# Zmensilo by to pocet vstupu, ale neztratilo by se tolik informace, jako pri prostem zmenseni!
-# Byl by to takovy lepsi resize
+# zahrnout informace i z puvodni fotky pred spocitanim rozdilu (napr. podstatne informace
+# o jasu cele sceny, tedy noc/den apod..)
+# -> to vede na lepsi predzpracovani, vcetne clusterizace
 
 # Parameters
 learning_rate = 0.0001
-training_epochs = 10000
+training_epochs = 1000
 batch_size = 50
 eval_step = 10
-save_step = 1000
+save_step = 500
 
-# zatim nejlepsi vysledky mi dava FUZZ=10, obrazek/10, sit 256x32
-# input image parameters
+# Nejednoznacnost pri urcovani rozdilu v obrazku. Cim vyssi cislo, tim mene rozdilu
+# Musi pro to byt predpocitana data
 FUZZ = 10
-img_resize = 10
-image_size_x = 1920 / img_resize
-image_size_y = 1080 / img_resize
+# Delitel velikosti obrazku. Kolikrat se obrazek zmensi
+# Musi pro to byt predpocitana data
+image_div = 2
+# Obrazek muzeme rozdelit na shluky cluster_size x cluster_size, u kterych napocitame
+# pocet rozdilnych pixelu a na vstup site pujde az toto cislo. V podstate tim zmensime
+# pocet vstupu site, bez toho aby se ztratilo tolik informace jako pri prostem zmenseni obrazku
+cluster_size = 10
+# input image parameters
+image_size_x = 1920 / image_div
+image_size_y = 1080 / image_div
 channels = 1 # R,G,B = 3 B/W = 1
 
 # Network Parameters
 # TODO jaka je optimalni velikost pro danou ulohu a velikost dat?
-n_hidden_1 = 64 # 1st layer number of features #24
-n_hidden_2 = 32 # 2nd layer number of features  #16
-n_input = image_size_x * image_size_y * channels # MNIST data input
+n_hidden_1 = 128 # 1st layer number of features #256
+n_hidden_2 = 64 # 2nd layer number of features  #64
+n_input = (image_size_x / cluster_size) * (image_size_y / cluster_size) * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
 
 # Input data
@@ -41,9 +50,9 @@ n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vyst
 # slozky zacinajici na t (jako true) jsou brany jako pozitivni klasifikace
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
 data_path = "/home/pepa/projects/camera_filter/learning/diff%s-%s" % (FUZZ, image_size_x)
-n_test_pct = 10 # procent testovacich dat
+n_test_pct = 50 # procent testovacich dat
 
-model_name = "model-%s-%s-%s-%s" % (FUZZ, image_resize, n_hidden_1, n_hidden_2)
+model_name = "model-%s-%s-%s-%s-%s" % (FUZZ, image_div, cluster_size, n_hidden_1, n_hidden_2)
 
 x = tf.placeholder(tf.float32, shape=(None, n_input))
 y = tf.placeholder(tf.int64, shape=(None))
@@ -64,22 +73,14 @@ def get_files(path):
     print "Test images = %s" % (n_test, )
     return train_files, test_files
 
+
 def get_images_labels(files):
     images = []
     labels = []
     for filename in files:
-        # podle prviho pismena posledni slozky souboru pozname true/false
-        if filename.split("/")[-2:][0][0] == 'f': #false
-            #TODO pravdepodobnost pro true false?
-            labels.append(0) #negative alarm
-            #print ("%s (0)" % (filename, ))
-        else:
-            labels.append(1) #positive alarm (ma vyssi vahu?)
-            #print ("%s (1)" % (filename, ))
-        image = Image.open(filename)
-        # TODO if image.size <> network size?
-        #image = image.resize((image_size_x, image_size_y))
-        images.append(np.array(image))
+        image, label = pi.read_preprocess_image(filename, cluster_size)
+        images.append(image)
+        labels.append(label)
     np_images = np.array(images)
     np_images = np_images.reshape(len(images), n_input)
     np_labels = np.array(labels)
@@ -116,15 +117,23 @@ def main(argv):
 
         train_files, test_files = get_files(data_path)
         n_train = len(train_files)
+        print "reading testing data"
+        start = time.time()
         test_images, test_labels = get_images_labels(test_files)
+        end = time.time()
+        print "testing data complete (%s s)" % (end - start)
+
+        # TODO zamichat spolu se stitky pro kazdou epochu
+        shuffle(train_files)
+        print "reading training data"
+        start = time.time()
+        train_images, train_labels = get_images_labels(train_files)
+        end = time.time()
+        print "training data complete (%s s)" % (end - start)
 
         best_acc = 0
         # Training cycle
         for epoch in range(training_epochs):
-            shuffle(train_files)
-            # TODO nejak se mi nelibi ze pro kazdou epochu musim znovu nacitat obrazky (ale zase to setri pamet)
-            # je to tu hlavne kvuli moznosti zamichat testovaci data pro kazdou epochu
-            train_images, train_labels = get_images_labels(train_files)
             avg_cost = 0.
             index_in_epoch = 0
             total_batches = int(n_train/batch_size)
@@ -147,17 +156,18 @@ def main(argv):
                 test_acc = accuracy.eval({x: test_images, y: test_labels})
                 print("Accuracy on train images:", train_acc)
                 print("Accuracy on test images:", test_acc)
-                if train_acc > best_acc:
-                    best_acc = train_acc
+                if (train_acc + test_acc) > best_acc:
+                    best_acc = train_acc + test_acc
                     saver.save(sess, "./" + model_name, global_step=epoch)
             if epoch % save_step == 0:
                 saver.save(sess, "./" + model_name, global_step=epoch)
             # toto je tu zamerne, kvuli snizeni vytizeni procesoru
-            sleep(1)
+            sleep(2)
         print("Optimization Finished!")
 
         saver.save(sess, "./" + model_name)
 
+        # TODO presunout do testeru
         print "Prediction mismatches in test data:"
         dt = 0
         df = 0
@@ -178,9 +188,8 @@ def main(argv):
                     mf = mf + 1
         print "%s/%s true and %s/%s false mismatches" % (mt, dt, mf, df)
 
-        train_images, train_labels = get_images_labels(train_files)
+        #train_images, train_labels = get_images_labels(train_files)
         print("Accuracy on train images:", accuracy.eval({x: train_images, y: train_labels}))
-        print("Accuracy on test images:", accuracy.eval({x: test_images, y: test_labels}))
 
 if __name__ == "__main__":
     main(sys.argv[1:])
