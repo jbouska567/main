@@ -9,23 +9,22 @@ import preprocess_image as pi
 
 
 # input image parameters
-FUZZ = 12
 image_div = 2
-cluster_size = 10
+cluster_size = 30
 
 image_size_x = 1920 / image_div
 image_size_y = 1080 / image_div
 channels = 1
 
 # Network Parameters
-n_hidden_1 = 128 # 1st layer number of features #24
-n_hidden_2 = 64 # 2nd layer number of features  #16
+n_hidden_1 = 64 # 1st layer number of features #24
+n_hidden_2 = 32 # 2nd layer number of features  #16
 n_input = (image_size_x / cluster_size) * (image_size_y / cluster_size) * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
 
-data_path = "/home/pepa/projects/camera_filter/learning/diff-f%s-%s" % (FUZZ, image_size_x)
-model_name = "model-%s-%s-%s-%s-%s" % (FUZZ, image_div, cluster_size, n_hidden_1, n_hidden_2)
-model_name = model_name + ""
+data_path = "/home/pepa/projects/camera_filter/learning/diff-%s" % (image_size_x)
+model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
+model_name = model_name + "-500"
 
 x = tf.placeholder(tf.float32, shape=(None, n_input))
 
@@ -44,7 +43,7 @@ with tf.Session() as sess:
     print "opening model %s" % model_name
     saver.restore(sess, "./"+model_name)
 
-    p = subprocess.Popen(["find %s -type f | grep '.png' | sort" % (data_path)], stdout=subprocess.PIPE, shell=True)
+    p = subprocess.Popen(["find %s -type f | grep 'diff2.png' | sort" % (data_path)], stdout=subprocess.PIPE, shell=True)
     (output, err) = p.communicate()
     p_status = p.wait()
     files = output.split()

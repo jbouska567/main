@@ -24,8 +24,18 @@ def get_clustered_data_old(image, cluster_size):
             clustered_image[yr].append(diff_count)
     return clustered_image
 
+# Vraci soucty ctvercu v obracku po cluster_size x cluster_size
+# normalizovane np.uint16 pokud je cluster_size > 16 (tj. 16x16x256)
 def get_clustered_data(image, cluster_size):
-    return sum_chunk(sum_chunk(image, cluster_size, axis=0), cluster_size, axis=1)
+    clustered_img = sum_chunk(sum_chunk(image, cluster_size, axis=0), cluster_size, axis=1)
+    max_diff = np.amax(clustered_img)
+    if max_diff > np.iinfo(np.uint16).max:
+        normalized_img = clustered_img.astype(np.float64) / max_diff
+        normalized_img = normalized_img * np.iinfo(np.uint16).max
+        normalized_img = normalized_img.astype(np.uint16)
+        return normalized_img
+    else:
+        return clustered_img
 
 def read_preprocess_image(filename, cluster_size):
     #image = Image.open(filename)
@@ -33,19 +43,13 @@ def read_preprocess_image(filename, cluster_size):
     # !!! v numpy je bug pri konvertu z PIL b/w image do numpy.array
     # ale lze to obejit nasledovne (dava to nahodny data, prip. sefaultuje)
     pil_image = Image.open(filename)
-    #image = np.reshape(pil_image.getdata(), (pil_image.size[1], pil_image.size[0]))
-    # TODO ma smysl to konvertovat na 0/1 (z 0/255)?
-    image = np.reshape(pil_image.getdata(), (pil_image.size[1], pil_image.size[0])) / 255
-    #image = image.astype(bool)
-    #print image.shape
+    image = np.reshape(pil_image.getdata(), (pil_image.size[1], pil_image.size[0]))
 
     #np.savetxt(filename.split("/")[-1:][0] + ".preprocessed0-5", image, fmt='%d')
-
     if cluster_size > 1:
         image = get_clustered_data(image, cluster_size)
 
     #np.savetxt(filename.split("/")[-1:][0] + ".preprocessed1-5", image, fmt='%d')
-
     return image
 
 def get_image_label(filename):

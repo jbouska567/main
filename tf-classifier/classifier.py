@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 import multilayer_perceptron as mp
 import preprocess_image as pi
-from random import shuffle
+import random
 from time import sleep
 import sys
 
@@ -16,34 +16,34 @@ import sys
 # o jasu cele sceny, tedy noc/den apod..)
 # -> to vede na lepsi predzpracovani, vcetne clusterizace
 # napr. c/b fotku o stejne velikosti jako clusterovana data
+# - dale by slo zahrnout nejakou celkovou informaci (celkova velikost rozdilu)
 
-# Parameters
-learning_rate = 0.0001
-training_epochs = 200
-batch_size = 50
-eval_step = 10
-save_step = 500
+#TODO sjednotit konstanty do jednoho modulu
 
-# Nejednoznacnost pri urcovani rozdilu v obrazku. Cim vyssi cislo, tim mene rozdilu
-# Musi pro to byt predpocitana data
-FUZZ = 12
 # Delitel velikosti obrazku. Kolikrat se obrazek zmensi
 # Musi pro to byt predpocitana data
 image_div = 2
 # Obrazek muzeme rozdelit na shluky cluster_size x cluster_size, u kterych napocitame
 # pocet rozdilnych pixelu a na vstup site pujde az toto cislo. V podstate tim zmensime
 # pocet vstupu site, bez toho aby se ztratilo tolik informace jako pri prostem zmenseni obrazku
-cluster_size = 10
+cluster_size = 30
 
 # input image parameters
 image_size_x = 1920 / image_div
 image_size_y = 1080 / image_div
 channels = 1 # R,G,B = 3 B/W = 1
 
+# Parameters of learning
+learning_rate = 0.0001
+training_epochs = 2000
+batch_size = 50
+eval_step = 10
+save_step = 500
+
 # Network Parameters
 # TODO jaka je optimalni velikost pro danou ulohu a velikost dat?
-n_hidden_1 = 128 # 1st layer number of features #256
-n_hidden_2 = 64 # 2nd layer number of features  #64
+n_hidden_1 = 64 # 1st layer number of features #256
+n_hidden_2 = 32 # 2nd layer number of features  #64
 n_input = (image_size_x / cluster_size) * (image_size_y / cluster_size) * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
 
@@ -51,17 +51,20 @@ n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vyst
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
 # slozky zacinajici na t (jako true) jsou brany jako pozitivni klasifikace
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
-data_path = "/home/pepa/projects/camera_filter/learning/diff-f%s-%s" % (FUZZ, image_size_x)
-n_test_pct = 25 # procent testovacich dat
+data_path = "/home/pepa/projects/camera_filter/learning/diff-%s" % image_size_x
+n_test_pct = 10 # procent testovacich dat
 
-model_name = "model-%s-%s-%s-%s-%s" % (FUZZ, image_div, cluster_size, n_hidden_1, n_hidden_2)
+model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
+print model_name
 
 x = tf.placeholder(tf.float32, shape=(None, n_input))
 y = tf.placeholder(tf.int64, shape=(None))
 
 def get_files(path):
     print "path = %s" % (path, )
-    p = subprocess.Popen(["find %s -type f | grep '.pp' | sort -R" % (path)], stdout=subprocess.PIPE, shell=True)
+    cmd = "find %s -type f | grep 'c%s.pp' | sort -R" % (path, cluster_size)
+    p = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
+    print cmd
     (output, err) = p.communicate()
     p_status = p.wait()
     files = output.split()
@@ -82,7 +85,7 @@ def get_images_labels(files):
     for filename in files:
         #image = pi.read_preprocess_image(filename, cluster_size)
         f = open(filename, "rb")
-        image = np.fromfile(f, dtype=np.int16)
+        image = np.fromfile(f, dtype=np.uint16)
         f.close()
         label = pi.get_image_label(filename)
         images.append(image)
@@ -129,8 +132,6 @@ def main(argv):
         end = time.time()
         print "testing data complete (%s s)" % (end - start)
 
-        # TODO zamichat spolu se stitky pro kazdou epochu
-        shuffle(train_files)
         print "reading training data"
         start = time.time()
         train_images, train_labels = get_images_labels(train_files)
@@ -143,6 +144,15 @@ def main(argv):
             avg_cost = 0.
             index_in_epoch = 0
             total_batches = int(n_train/batch_size)
+
+            # nahodne zamichame obrazky i labely ve stejnem poradi
+            # random.random nefunguje spravne na vicerozmerne np.array
+            # TODO je to k necemu?
+            r = np.arange(len(train_images))
+            np.random.shuffle(r)
+            train_images = train_images[r]
+            train_labels = train_labels[r]
+
             # pokud data nejsou delitelna davkou, chcem pouzit i zbytek
             if n_train > total_batches * batch_size:
                 total_batches += 1
@@ -192,7 +202,12 @@ def main(argv):
                     mt = mt + 1
                 else:
                     mf = mf + 1
-        print "%s/%s true and %s/%s false mismatches" % (mt, dt, mf, df)
+        print "Model %s" % model_name
+        train_acc = accuracy.eval({x: train_images, y: train_labels})
+        test_acc = accuracy.eval({x: test_images, y: test_labels})
+        print("Accuracy on train images:", train_acc)
+        print("Accuracy on test images:", test_acc)
+        print "%s/%s true and %s/%s false mismatches on test images" % (mt, dt, mf, df)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
