@@ -266,12 +266,12 @@ def process(files, mail_opt):
         logger.log("! ALARM " + text)
         if mail_opt:
             send_mail(subj, text, files=[files[0], files[2], diff_file, ], notify=True)
-        subprocess.call("mv %s %s %s %s %s/" % (files[0], files[1], files[2], diff_file, alarm_dir), shell=True)
-        subprocess.call("rm %s" % (diff_files, ), shell=True)
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[2], diff_file, alarm_dir), shell=True)
+        subprocess.call("rm %s %s" % (diff_files, files[1], ), shell=True)
     else:
         logger.log("False alarm, diff: %s, zones diff sum: %s\nzones diffs: %s" % (diff, diff_zones_sum, diff_zones))
-        subprocess.call("mv %s %s %s %s %s/" % (files[0], files[1], files[2], diff_file, trash_dir), shell=True)
-        subprocess.call("rm %s" % (diff_files, ), shell=True)
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[2], diff_file, trash_dir), shell=True)
+        subprocess.call("rm %s %s" % (diff_files, files[1], ), shell=True)
         result = False
 
     logger.log("----------")

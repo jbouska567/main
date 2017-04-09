@@ -1,3 +1,9 @@
+zoneway-camera-filter (1.1.1) UNRELEASED; urgency=medium
+
+  * not archives middle picture
+
+ -- Josef Bouska <bow.ska@seznam.cz>  Sun, 09 Apr 2017 22:26:52 +0200
+
 zoneway-camera-filter (1.1.0) unstable; urgency=medium
 
   * better exception handling
