@@ -169,14 +169,14 @@ def process(files, mail_opt):
     zones = config['detect_compare']['zones']
     contra_zones = config['detect_compare']['contra_zones']
 
-    pos = files[2].find(".jpg")
+    pos = files[-1].find(".jpg")
     if pos > 0:
-        diff_file = files[2][:-4] + "-diff.jpg"
+        diff_file = files[-1][:-4] + "-diff.jpg"
 
     # porovnani fotek
     try:
         # pripravit a poslat prikaz na porovnani celeho obrazku
-        cmd = "compare -metric AE -fuzz %s%% %s %s %s" % (fuzz, files[0], files[2], diff_file)
+        cmd = "compare -metric AE -fuzz %s%% %s %s %s" % (fuzz, files[0], files[-1], diff_file)
         logger.log(cmd)
         p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         (out, err) = p.communicate()
@@ -186,7 +186,7 @@ def process(files, mail_opt):
         for z in zones + contra_zones:
             # souradnice vyrezu jsou velikost XxY a levy horni roh +X+Y
             cmd = "compare -metric AE -fuzz %s%% -extract %sx%s+%s+%s %s %s diff%s.jpg" % (
-                fuzz, z["extract"][0], z["extract"][1], z["extract"][2], z["extract"][3], files[0], files[2], z["id"])
+                fuzz, z["extract"][0], z["extract"][1], z["extract"][2], z["extract"][3], files[0], files[-1], z["id"])
             z["p"] = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             (z["out"], z["err"]) = z["p"].communicate()
             diff_files += "diff%s.jpg " % (z["id"], )
@@ -214,8 +214,8 @@ def process(files, mail_opt):
             diff_zones += "%s%s: %s%% (%s), " % (("! " if z["alarm"] else ""), z["id"], z["pct_diff"], z["diff"])
     except Exception as ex:
         send_mail("Camera ALARM: Error Pictures", "error while comparing pictures",
-            files=[files[0], files[2], ], notify=True)
-        subprocess.call("mv %s %s %s %s %s/" % (files[0], files[1], files[2], diff_file, error_dir), shell=True)
+            files=[files[0], files[-1], ], notify=True)
+        subprocess.call("mv %s %s %s/" % (' '.join(files), diff_file, error_dir), shell=True)
         subprocess.call("rm *.jpg", shell=True)
         raise ex
 
@@ -239,8 +239,8 @@ def process(files, mail_opt):
         status = p.wait()
     except Exception as ex:
         send_mail("Camera ALARM: Error Pictures", "error while converting diff file",
-            files=[files[0], files[2], diff_file, ], notify=True)
-        subprocess.call("mv %s %s %s %s %s/" % (files[0], files[1], files[2], diff_file, error_dir), shell=True)
+            files=[files[0], files[-1], diff_file, ], notify=True)
+        subprocess.call("mv %s %s %s/" % (' '.join(files), diff_file, error_dir), shell=True)
         subprocess.call("rm *.jpg", shell=True)
         raise ex
 
@@ -265,13 +265,13 @@ def process(files, mail_opt):
         text = "in zones: %s\nimage diff: %s, zones diff sum: %s\nzones diffs: %s" % (alarm_zones, diff, diff_zones_sum, diff_zones)
         logger.log("! ALARM " + text)
         if mail_opt:
-            send_mail(subj, text, files=[files[0], files[2], diff_file, ], notify=True)
-        subprocess.call("mv %s %s %s %s/" % (files[0], files[2], diff_file, alarm_dir), shell=True)
-        subprocess.call("rm %s %s" % (diff_files, files[1], ), shell=True)
+            send_mail(subj, text, files=[files[0], files[-1], diff_file, ], notify=True)
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file, alarm_dir), shell=True)
+        subprocess.call("rm %s %s" % (diff_files, files[1:len(files)-1], ), shell=True)
     else:
         logger.log("False alarm, diff: %s, zones diff sum: %s\nzones diffs: %s" % (diff, diff_zones_sum, diff_zones))
-        subprocess.call("mv %s %s %s %s/" % (files[0], files[2], diff_file, trash_dir), shell=True)
-        subprocess.call("rm %s %s" % (diff_files, files[1], ), shell=True)
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file, trash_dir), shell=True)
+        subprocess.call("rm %s %s" % (diff_files, files[1:len(files)-1], ), shell=True)
         result = False
 
     logger.log("----------")
@@ -306,6 +306,8 @@ def main():
     mail_opt = config['main']['mail_opt']
     if 'nomail' in options and options['nomail']:
         mail_opt = False
+    input_batch_size = config['main']['input_batch_size']
+    input_dir = config['main']['input_dir']
 
     prev_hour = get_hour()
     stats_true = 0
@@ -348,7 +350,8 @@ def main():
                 fetch_files(ftp)
 
             # TODO lepsi prace se soubory, pres pythoni libky
-            p = subprocess.Popen(["find %s -maxdepth 1 -type f | grep ARC | grep -v diff | sort -r" % config['main']['input_dir']],
+            # TODO lepe zpracovat davku (nenacitat znovu porad dokola)
+            p = subprocess.Popen("find %s -maxdepth 1 -type f | grep ARC | grep -v diff | sort -r | head -n%s" % (input_dir, input_batch_size),
                 stdout=subprocess.PIPE, shell=True)
             (output, err) = p.communicate()
             p_status = p.wait()
@@ -361,12 +364,13 @@ def main():
                 logger.log("no files to compare, sleeping for %s seconds.." % config['main']['sleep_sec'])
                 sleep(config['main']['sleep_sec'])
                 continue
-            if len(files) < 3:
-                logger.log("less than 3 files to compare, trying again..")
+            if len(files) < input_batch_size:
+                logger.log("less than %s files to compare, trying again.." % input_batch_size)
                 sleep(1)
                 continue
 
             logger.log("%s files to compare" % (len(files), ))
+
             if process(files, mail_opt):
                 stats_true += 1
             else:

@@ -8,6 +8,7 @@ main:
   error_dir: '/www/camera-filter/error'
   mail_opt: false
   ftp_opt: false
+  input_batch_size: 2
 
 # files expiration settings
 expiration:
