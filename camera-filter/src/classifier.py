@@ -5,11 +5,13 @@ import subprocess
 import tensorflow as tf
 import numpy as np
 from PIL import Image
-import multilayer_perceptron as mp
-import preprocess_image as pi
+from lib.multilayer_perceptron import MultilayerPerceptron
+from lib.preprocess_image import get_image_label
 import random
 from time import sleep
 import sys
+
+#TODO promenne z yml configu
 
 #TODO napad:
 # zahrnout informace i z puvodni fotky pred spocitanim rozdilu (napr. podstatne informace
@@ -33,13 +35,6 @@ image_size_x = 1920 / image_div
 image_size_y = 1080 / image_div
 channels = 1 # R,G,B = 3 B/W = 1
 
-# Parameters of learning
-learning_rate = 0.0001
-training_epochs = 2000
-batch_size = 50
-eval_step = 10
-save_step = 500
-
 # Network Parameters
 # TODO jaka je optimalni velikost pro danou ulohu a velikost dat?
 n_hidden_1 = 64 # 1st layer number of features #256
@@ -47,17 +42,24 @@ n_hidden_2 = 32 # 2nd layer number of features  #64
 n_input = (image_size_x / cluster_size) * (image_size_y / cluster_size) * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
 
+# Parameters of learning
+learning_rate = 0.0001
+training_epochs = 2000
+batch_size = 50
+eval_step = 10
+save_step = 500
+
 # Input data
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
 # slozky zacinajici na t (jako true) jsou brany jako pozitivni klasifikace
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
+#TODO do konfigu
 data_path = "/home/pepa/projects/camera_filter/learning/diff-%s" % image_size_x
 n_test_pct = 10 # procent testovacich dat
 
 model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
 print model_name
 
-x = tf.placeholder(tf.float32, shape=(None, n_input))
 y = tf.placeholder(tf.int64, shape=(None))
 
 def get_files(path):
@@ -87,7 +89,7 @@ def get_images_labels(files):
         f = open(filename, "rb")
         image = np.fromfile(f, dtype=np.uint16)
         f.close()
-        label = pi.get_image_label(filename)
+        label = get_image_label(filename)
         images.append(image)
         labels.append(label)
     np_images = np.array(images)
@@ -98,11 +100,10 @@ def get_images_labels(files):
 def main(argv):
 
     # Construct model
-    multilayer_perceptron = mp.MultilayerPerceptron(n_input, n_hidden_1, n_hidden_2, n_classes)
-    pred = multilayer_perceptron.get_model(x)
+    model = MultilayerPerceptron(n_input, n_hidden_1, n_hidden_2, n_classes)
 
     # Define loss function
-    cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred, labels=y)) #label je index spravneho vystupu
+    cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=model.out_layer, labels=y)) #label je index spravneho vystupu
     # Define optimizer
     global_step = tf.Variable(0, name='global_step', trainable=False)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost, global_step=global_step)
@@ -113,7 +114,7 @@ def main(argv):
     init = tf.global_variables_initializer()
 
     # Test model
-    correct_prediction = tf.equal(tf.argmax(pred, 1), y)
+    correct_prediction = tf.equal(tf.argmax(model.out_layer, 1), y)
     # Calculate accuracy
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
@@ -158,7 +159,7 @@ def main(argv):
                 total_batches += 1
             # Loop over all batches
             for i in range(total_batches):
-                _, c = sess.run([optimizer, cost], feed_dict={x: train_images[index_in_epoch : index_in_epoch+batch_size],
+                _, c = sess.run([optimizer, cost], feed_dict={model.input_ph: train_images[index_in_epoch : index_in_epoch+batch_size],
                                                               y: train_labels[index_in_epoch : index_in_epoch+batch_size]})
                 # Compute average loss
                 avg_cost += c / total_batches
@@ -168,8 +169,8 @@ def main(argv):
             print("Epoch:", '%04d' % (epoch), "cost=", \
                 "{:.9f}".format(avg_cost))
             if epoch % eval_step == 0:
-                train_acc = accuracy.eval({x: train_images, y: train_labels})
-                test_acc = accuracy.eval({x: test_images, y: test_labels})
+                train_acc = accuracy.eval({model.input_ph: train_images, y: train_labels})
+                test_acc = accuracy.eval({model.input_ph: test_images, y: test_labels})
                 print("Accuracy on train images:", train_acc)
                 print("Accuracy on test images:", test_acc)
                 if (train_acc + test_acc) > best_acc:
@@ -184,13 +185,13 @@ def main(argv):
         saver.save(sess, "./" + model_name)
 
         # TODO presunout do testeru
-        print "Prediction mismatches in test data:"
+        print "model.out_layeriction mismatches in test data:"
         dt = 0
         df = 0
         mt = 0
         mf = 0
         for n, test_image in enumerate(test_images):
-            cl = sess.run(tf.argmax(pred, 1), feed_dict={x: [test_image]})
+            cl = sess.run(tf.argmax(model.out_layer, 1), feed_dict={model.input_ph: [test_image]})
             label = test_labels[n]
             if label:
                 dt = dt + 1
@@ -203,8 +204,8 @@ def main(argv):
                 else:
                     mf = mf + 1
         print "Model %s" % model_name
-        train_acc = accuracy.eval({x: train_images, y: train_labels})
-        test_acc = accuracy.eval({x: test_images, y: test_labels})
+        train_acc = accuracy.eval({model.input_ph: train_images, y: train_labels})
+        test_acc = accuracy.eval({model.input_ph: test_images, y: test_labels})
         print("Accuracy on train images:", train_acc)
         print("Accuracy on test images:", test_acc)
         print "%s/%s true and %s/%s false mismatches on test images" % (mt, dt, mf, df)

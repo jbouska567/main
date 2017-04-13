@@ -3,9 +3,10 @@
 import numpy as np
 import subprocess
 import os
-from preprocess_image import read_preprocess_image
+from lib.preprocess_image import difference_image, read_preprocess_image
 from PIL import Image
 
+#TODO promenne z yml configu
 
 image_div = 2
 cluster_size = 30
@@ -13,16 +14,10 @@ cluster_size = 30
 image_size_x = 1920 / image_div
 image_size_y = 1080 / image_div
 
+#TODO do konfigu
 data_dir = "/home/pepa/projects/camera_filter/learning/"
 picture_dir = data_dir + "pictures"
 tf_dirs = [ name for name in os.listdir(picture_dir) if os.path.isdir(os.path.join(picture_dir, name)) ]
-
-# prevzato z
-# http://stackoverflow.com/questions/35777830/fast-absolute-difference-of-two-uint8-arrays
-def differenceImageV6(img1, img2):
-    a = img1-img2
-    b = np.uint8(img1<img2) * 254 + 1
-    return a * b
 
 
 for d in sorted(tf_dirs):
@@ -52,7 +47,7 @@ for d in sorted(tf_dirs):
             img2 = img2.convert('L')
             np_img1 = np.array(img1.getdata(),dtype=np.uint8).reshape((image_size_y, image_size_x))
             np_img2 = np.array(img2.getdata(),dtype=np.uint8).reshape((image_size_y, image_size_x))
-            np_img_diff = differenceImageV6(np_img1, np_img2)
+            np_img_diff = difference_image(np_img1, np_img2)
             img_diff = Image.fromarray(np_img_diff, mode='L')
             img_diff.save(diff_file)
             print "%s written" % diff_file
@@ -68,7 +63,7 @@ for d in sorted(tf_dirs):
 #           img2 = img2.resize((image_size_x, image_size_y), Image.ANTIALIAS)
 #           np_img1 = np.array(img1.getdata(),dtype=np.uint8).reshape((image_size_y, image_size_x, 3))
 #           np_img2 = np.array(img2.getdata(),dtype=np.uint8).reshape((image_size_y, image_size_x, 3))
-#           np_img_diff = differenceImageV6(np_img1, np_img2)
+#           np_img_diff = difference_image(np_img1, np_img2)
 #           img_diff = Image.fromarray(np_img_diff)
 #           img_diff.save(diff_file_3)
 #           print "%s written" % diff_file_3
