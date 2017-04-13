@@ -1,6 +1,12 @@
 import numpy as np
 from PIL import Image
 
+# thanks to
+# http://stackoverflow.com/questions/35777830/fast-absolute-difference-of-two-uint8-arrays
+def difference_image(img1, img2):
+    a = img1-img2
+    b = np.uint8(img1<img2) * 254 + 1
+    return a * b
 
 def sum_chunk(x, chunk_size, axis=-1):
     shape = x.shape

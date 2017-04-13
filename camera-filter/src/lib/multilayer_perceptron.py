@@ -17,16 +17,14 @@ class MultilayerPerceptron:
             'b2': tf.Variable(tf.random_normal([n_hidden_2])),
             'out': tf.Variable(tf.random_normal([n_classes]))
         }
+        self.input_ph = tf.placeholder(tf.float32, shape=(None, n_input))
 
-    # Create model
-    def get_model(self, x):
+        # Create model
         # Hidden layer with RELU activation
-        layer_1 = tf.add(tf.matmul(x, self.weights['h1']), self.biases['b1'])
-        layer_1 = tf.nn.relu(layer_1)
+        self.layer_1 = tf.add(tf.matmul(self.input_ph, self.weights['h1']), self.biases['b1'])
+        self.layer_1 = tf.nn.relu(self.layer_1)
         # Hidden layer with RELU activation
-        layer_2 = tf.add(tf.matmul(layer_1, self.weights['h2']), self.biases['b2'])
-        layer_2 = tf.nn.relu(layer_2)
+        self.layer_2 = tf.add(tf.matmul(self.layer_1, self.weights['h2']), self.biases['b2'])
+        self.layer_2 = tf.nn.relu(self.layer_2)
         # Output layer with linear activation
-        out_layer = tf.matmul(layer_2, self.weights['out']) + self.biases['out']
-        return out_layer
-
+        self.out_layer = tf.matmul(self.layer_2, self.weights['out']) + self.biases['out']
