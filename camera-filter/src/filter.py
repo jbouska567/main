@@ -1,4 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+
+import numpy as np
+import tensorflow as tf
+from lib.multilayer_perceptron import MultilayerPerceptron
+from PIL import Image
+from lib.preprocess_image import difference_image, read_preprocess_image
 
 import subprocess
 import traceback
@@ -29,9 +35,6 @@ from email.utils import COMMASPACE, formatdate
 #TODO ovladani mailem zasalnym zpet na adresu odesilatele (napr. vypinani, zapinani upozorneni, poslani statistik, atd.)
 
 
-config = None
-logger = None
-
 def build_dict(seq, key):
     return dict((d[key], dict(d, index=index)) for (index, d) in enumerate(seq))
 
@@ -46,10 +49,40 @@ class OptionParser(BaseParser):
         options, args = self.parse_args()
         return vars(options), args
 
+class Configuration:
+    def __init__(self):
+        parser = OptionParser()
+        parser.add_option('--once', action='store_true', help='start once, only to process batch')
+        parser.add_option('--noftp', action='store_true', help='prevent loading files from FTP server (overrides config)')
+        parser.add_option('--nomail', action='store_true', help='prevent sending mail (overrides config)')
+        options, args = parser.parse_args_dict()
+        config_file = options['config']
+        if not config_file:
+            parser.print_help()
+            raise Exception("Config file argument is requeired")
+
+        stream = open(config_file)
+        self.yaml = yaml.load(stream)
+        self.once_opt = ('once' in options) and (options['once'] is True)
+        self.ftp_opt = self.yaml['main']['ftp_opt']
+        if 'noftp' in options and options['noftp']:
+            self.ftp_opt = False
+        self.mail_opt = self.yaml['main']['mail_opt']
+        if 'nomail' in options and options['nomail']:
+            self.mail_opt = False
+
+        self.input_batch_size = self.yaml['main']['input_batch_size']
+        self.image_size_x = self.yaml['classifier']['image_size_x'] / self.yaml['classifier']['image_div']
+        self.image_size_y = self.yaml['classifier']['image_size_y'] / self.yaml['classifier']['image_div']
+        self.cluster_size = self.yaml['classifier']['cluster_size']
+        self.n_input = (self.image_size_x / self.cluster_size) * (self.image_size_y / self.cluster_size) * self.yaml['classifier']['channels']
+
+
 #TODO nejake standardni logovani
 class Logger:
-    def __init__(self, config):
-        self.log_dir = config['main']['log_dir']
+    def __init__(self, cfg_yaml):
+        self.log_dir = cfg_yaml['main']['log_dir']
+        self.log_expire_days = cfg_yaml['expiration']['log_expire_days']
         self.log_file = open("%s/log" % self.log_dir, 'a')
 
     def rotate(self):
@@ -61,7 +94,7 @@ class Logger:
         self.log_file = open('%s/log' % self.log_dir, 'a')
         # expirace
         subprocess.call("find %s/* -mtime +%s -exec rm {} \;" %
-            (self.log_dir, config['expiration']['log_expire_days']), shell=True)
+            (self.log_dir, self.log_expire_days), shell=True)
 
     def log(self, text, level="INFO"):
         line = strftime("%Y-%m-%d %H:%M:%S ", localtime()) + level + ": " + text
@@ -74,10 +107,10 @@ class Logger:
 def get_hour():
     return int(strftime("%H", localtime()))
 
-def connect_ftp(server, login, passwd):
-    ftp = FTP(server)
-    ftp.login(login, passwd)
-    ftp.cwd(config['ftp']['ftp_dir'])
+def connect_ftp(cfg_yaml):
+    ftp = FTP(cfg_yaml['ftp']['server'])
+    ftp.login(cfg_yaml['ftp']['user'], cfg_yaml['ftp']['passwd'])
+    ftp.cwd(cfg_yaml['ftp']['dir'])
     return ftp
 
 #TODO toto je potreba zlepsit, protoze se stava, ze se nacte seznam souboru, kdyz tam jeste nejsou
@@ -90,7 +123,7 @@ def connect_ftp(server, login, passwd):
 #2016-11-06 13:49:00: ftp connection lost: 421 No Transfer Timeout (300 seconds): closing control connection
 #2016-11-06 13:57:15: ftp connection lost: [Errno 32] Broken pipe
 
-def fetch_files(ftp):
+def fetch_files(ftp, cfg_yaml, logger):
     # zkusime zda je navazane spojeni s FTP serverem
     try:
         ftp.voidcmd("NOOP")
@@ -99,8 +132,7 @@ def fetch_files(ftp):
         logger.log("ftp connection lost: %s" %ex, level="WARN")
         ftp.quit()
         # zkusime se znovu spojit
-        ftp = connect_ftp(config['ftp']['ftp_server'],
-            config['ftp']['ftp_user'], config['ftp']['ftp_passwd'])
+        ftp = connect_ftp(cfg_yaml)
         # pokud stale nic, koncime s chybou
         ftp.voidcmd("NOOP")
 
@@ -114,17 +146,17 @@ def fetch_files(ftp):
     # jeste nemusi byt kompletne nahran na FTP ze ktereho cteme
     sleep(1)
     for file in ftp_list:
-        ftp.retrbinary("RETR %s" % file, open("%s/%s" % (config['main']['input_dir'], file), "wb").write)
+        ftp.retrbinary("RETR %s" % file, open("%s/%s" % (cfg_yaml['main']['input_dir'], file), "wb").write)
         logger.log("retrieved %s file from ftp" % file)
         ftp.delete(file)
     sleep(1)
 
 
-def send_mail(subj, text, files=None, notify=False):
+def send_mail(cfg_yaml, subj, text, files=None, notify=False):
 
     msg = MIMEMultipart()
-    msg['From'] = config['mail']['mail_from']
-    msg['To'] = config['mail']['mail_to']
+    msg['From'] = cfg_yaml['mail']['from']
+    msg['To'] = cfg_yaml['mail']['to']
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subj
 
@@ -141,181 +173,92 @@ def send_mail(subj, text, files=None, notify=False):
 
     smtp = smtplib.SMTP()
 
-    smtp.connect(config['mail']['mail_server'], 587) #port 587 TLS, 25 nezabezpecene spojeni
+    smtp.connect(cfg_yaml['mail']['server'], 587) #port 587 TLS, 25 nezabezpecene spojeni
     smtp.ehlo()     #TLS only
     smtp.starttls() #TLS only
-    smtp.login(config['mail']['mail_from'], config['mail']['mail_from_passwd'])
+    smtp.login(cfg_yaml['mail']['from'], cfg_yaml['mail']['from_passwd'])
 
-    smtp.sendmail(config['mail']['mail_from'], config['mail']['mail_to'], msg.as_string())
+    smtp.sendmail(cfg_yaml['mail']['from'], cfg_yaml['mail']['to'], msg.as_string())
 
     if notify:
         msg = MIMEMultipart()
-        msg['From'] = config['mail']['mail_from']
-        msg['To'] = config['mail']['notify_to']
+        msg['From'] = cfg_yaml['mail']['from']
+        msg['To'] = cfg_yaml['mail']['notify_to']
         msg['Date'] = formatdate(localtime=True)
         msg['Subject'] = subj
 
-        smtp.sendmail(config['mail']['mail_from'], config['mail']['notify_to'], msg.as_string())
+        smtp.sendmail(cfg_yaml['mail']['from'], cfg_yaml['mail']['notify_to'], msg.as_string())
 
     smtp.close()
 
-def process(files, mail_opt):
-    # TODO toto by se melo provest jednou pri startu v nejake tride s nastavenim
-    input_dir = config['main']['input_dir']
-    alarm_dir = config['main']['alarm_dir']
-    trash_dir = config['main']['trash_dir']
-    error_dir = config['main']['error_dir']
-    fuzz = config['detect_compare']['fuzz']
-    zones = config['detect_compare']['zones']
-    contra_zones = config['detect_compare']['contra_zones']
+def get_np_img(file_name, image_size_x, image_size_y):
+    img = Image.open(file_name)
+    img = img.resize((image_size_x, image_size_y), Image.ANTIALIAS)
+    img = img.convert('L')
+    np_img = np.array(img.getdata(),dtype=np.uint8).reshape((image_size_y, image_size_x))
+    return np_img
 
-    pos = files[-1].find(".jpg")
-    if pos > 0:
-        diff_file = files[-1][:-4] + "-diff.jpg"
+def process_mp(cfg, logger, sess, model, files):
 
-    # porovnani fotek
-    try:
-        # pripravit a poslat prikaz na porovnani celeho obrazku
-        cmd = "compare -metric AE -fuzz %s%% %s %s %s" % (fuzz, files[0], files[-1], diff_file)
-        logger.log(cmd)
-        p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        (out, err) = p.communicate()
+    diff_file = files[-1][:-4] + "-diff.jpg"
 
-        # pripravit a poslat prikazy na porovnani zon
-        diff_files = ""
-        for z in zones + contra_zones:
-            # souradnice vyrezu jsou velikost XxY a levy horni roh +X+Y
-            cmd = "compare -metric AE -fuzz %s%% -extract %sx%s+%s+%s %s %s diff%s.jpg" % (
-                fuzz, z["extract"][0], z["extract"][1], z["extract"][2], z["extract"][3], files[0], files[-1], z["id"])
-            z["p"] = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-            (z["out"], z["err"]) = z["p"].communicate()
-            diff_files += "diff%s.jpg " % (z["id"], )
-            logger.log("zone %s: %s" % (z["id"], cmd))
+    np_img1 = get_np_img(files[0], cfg.image_size_x, cfg.image_size_y)
+    np_img2 = get_np_img(files[-1], cfg.image_size_x, cfg.image_size_y)
+    np_img_diff = difference_image(np_img1, np_img2)
+    img_diff = Image.fromarray(np_img_diff, mode='L')
+    img_diff.save(diff_file)
+    print "%s written" % diff_file
 
-        # pockat na vysledek porovnani obrazku
-        status = p.wait()
-        diff = float(err)
+    npi = read_preprocess_image(diff_file, cfg.cluster_size)
+    npi = npi.reshape(cfg.n_input)
 
-        # pockat na vysledky a zpracovat porovnani zon
-        diff_zones_sum = 0.0
-        diff_zones = ""
-        alarm_zones = ""
-        alarm_zones_count = 0
-        for z in zones + contra_zones:
-            z["alarm"] = False
-            z["status"] = z["p"].wait()
-            z["diff"] = float(z["err"])
-            z["area"] = z["extract"][0] * z["extract"][1]
-            z["pct_diff"] = round((z["diff"] / z["area"]) * 100, 1)
-            if z["pct_diff"] >= z["pct_thr"]:
-                z["alarm"] = True
-                alarm_zones_count += 1
-            diff_zones_sum += z["diff"]
-            diff_zones += "%s%s: %s%% (%s), " % (("! " if z["alarm"] else ""), z["id"], z["pct_diff"], z["diff"])
-    except Exception as ex:
-        send_mail("Camera ALARM: Error Pictures", "error while comparing pictures",
-            files=[files[0], files[-1], ], notify=True)
-        subprocess.call("mv %s %s %s/" % (' '.join(files), diff_file, error_dir), shell=True)
-        subprocess.call("rm *.jpg", shell=True)
-        raise ex
+    cl = sess.run(tf.argmax(model.out_layer, 1), feed_dict={model.input_ph: [npi]})
 
-    # oramovat a otextovat zony
-    rectangles = ""
-    texts = ""
-    for z in zones + contra_zones:
-        # souradnice obdelniku jsou odkud X,Y kam X,Y
-        rectangles += "-draw \"rectangle %s,%s %s,%s\" " % (
-            z["extract"][2], z["extract"][3], z["extract"][2]+z["extract"][0], z["extract"][3]+z["extract"][1])
-        texts += "-draw \"text %s,%s \'%s%s: %s%% (%s)\'\" " % (
-            z["extract"][2] + 5, z["extract"][3] + 30, ("! " if z["alarm"] else ""), z["id"], z["pct_diff"], z["diff"])
-    try:
-        cmd = "convert %s -fill none -stroke black -strokewidth 2 %s %s" % (diff_file, rectangles, diff_file)
-        p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        (out, err) = p.communicate()
-        status = p.wait()
-        cmd = "convert %s -stroke black -pointsize 30 %s %s" % (diff_file, texts, diff_file)
-        p = subprocess.Popen([cmd, ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        (out, err) = p.communicate()
-        status = p.wait()
-    except Exception as ex:
-        send_mail("Camera ALARM: Error Pictures", "error while converting diff file",
-            files=[files[0], files[-1], diff_file, ], notify=True)
-        subprocess.call("mv %s %s %s/" % (' '.join(files), diff_file, error_dir), shell=True)
-        subprocess.call("rm *.jpg", shell=True)
-        raise ex
-
-    # vyruseni falesnych alarmu kontra zonami
-    zone_by_id = build_dict(zones, key="id")
-    for zc in contra_zones:
-        if zc["alarm"]:
-            for z_id in zc["contra"]:
-                if (zone_by_id[z_id]["pct_diff"] - zc["pct_diff"] * zc["mult"]) < zone_by_id[z_id]["pct_thr"]:
-                    zone_by_id[z_id]["alarm"] = False
-
-    result = False
-    for key, z in zone_by_id.iteritems():
-        if z["alarm"]:
-            result = True
-            alarm_zones += "%s: %s%%, " % (z["id"], z["pct_diff"])
-
-    # vic jak 2 (nebo 3?) zony najednou je s velkou pravdepodobnosti plany poplach zpusobeny
-    # plosnou zmenu jasu/barev ve scene
-    if result and alarm_zones_count < 4:
+    if cl:
         subj = 'Camera ALARM ' + strftime("%Y-%m-%d %H:%M:%S", localtime())
-        text = "in zones: %s\nimage diff: %s, zones diff sum: %s\nzones diffs: %s" % (alarm_zones, diff, diff_zones_sum, diff_zones)
+        text = ""
         logger.log("! ALARM " + text)
-        if mail_opt:
-            send_mail(subj, text, files=[files[0], files[-1], diff_file, ], notify=True)
-        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file, alarm_dir), shell=True)
-        subprocess.call("rm %s %s" % (diff_files, files[1:len(files)-1], ), shell=True)
+        if cfg.mail_opt:
+            send_mail(cfg.yaml, subj, text, files=[files[0], files[-1], diff_file, ], notify=True)
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file,
+            cfg.yaml['main']['alarm_dir']), shell=True)
     else:
-        logger.log("False alarm, diff: %s, zones diff sum: %s\nzones diffs: %s" % (diff, diff_zones_sum, diff_zones))
-        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file, trash_dir), shell=True)
-        subprocess.call("rm %s %s" % (diff_files, files[1:len(files)-1], ), shell=True)
-        result = False
+        logger.log("False alarm")
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file,
+            cfg.yaml['main']['trash_dir']), shell=True)
+
+    if len(files) > 2:
+        subprocess.call("rm %s" % (' '.join(files[1:len(files)-1]), ), shell=True)
 
     logger.log("----------")
-    return result
+    return cl
+
 
 def main():
-    ftp_opt = False
-    mail_opt = False
+    cfg = Configuration()
+    logger = Logger(cfg.yaml)
 
-    parser = OptionParser()
-    parser.add_option('--once', action='store_true', help='start once, only to process batch')
-    parser.add_option('--noftp', action='store_true', help='prevent loading files from FTP server (overrides config)')
-    parser.add_option('--nomail', action='store_true', help='prevent sending mail (overrides config)')
-    options, args = parser.parse_args_dict()
-    config_file = options['config']
-    if not config_file:
-        parser.print_help()
-        print "Config file argument is requeired"
-        return
-
-    global config
-    with open(config_file) as stream:
-        config = yaml.load(stream)
-
-    global logger
-    logger = Logger(config)
-
-    once_opt = ('once' in options) and (options['once'] is True)
-    ftp_opt = config['main']['ftp_opt']
-    if 'noftp' in options and options['noftp']:
-        ftp_opt = False
-    mail_opt = config['main']['mail_opt']
-    if 'nomail' in options and options['nomail']:
-        mail_opt = False
-    input_batch_size = config['main']['input_batch_size']
-    input_dir = config['main']['input_dir']
+    # Construct model
+    model_path = cfg.yaml['main']['model_dir'] + '/' + cfg.yaml['classifier']['model_name']
+    model = MultilayerPerceptron(
+        cfg.n_input,
+        cfg.yaml['classifier']['n_hidden_1'],
+        cfg.yaml['classifier']['n_hidden_2'],
+        cfg.yaml['classifier']['n_classes'])
+    # Initializing the variables
+    init = tf.global_variables_initializer()
+    sess = tf.Session()
+    sess.run(init)
+    saver = tf.train.Saver()
+    print "opening model %s" % model_path
+    saver.restore(sess, model_path)
 
     prev_hour = get_hour()
     stats_true = 0
     stats_false = 0
 
-    if ftp_opt:
-        ftp = connect_ftp(config['ftp']['ftp_server'],
-            config['ftp']['ftp_user'], config['ftp']['ftp_passwd'])
+    if cfg.ftp_opt:
+        ftp = connect_ftp(cfg.yaml)
 
     err_count = 0
 
@@ -327,9 +270,9 @@ def main():
                 if hour == 0:
                     logger.rotate()
 
-                    logger.log("Deleting files from alarm and trash older than %s days" % config['expiration']['expire_days'])
-                    subprocess.call("find trash/* -mtime +%s -exec rm {} \;" % config['expiration']['expire_days'], shell=True)
-                    subprocess.call("find alarm/* -mtime +%s -exec rm {} \;" % config['expiration']['expire_days'], shell=True)
+                    logger.log("Deleting files from alarm and trash older than %s days" % cfg.yaml['expiration']['expire_days'])
+                    subprocess.call("find trash/* -mtime +%s -exec rm {} \;" % cfg.yaml['expiration']['expire_days'], shell=True)
+                    subprocess.call("find alarm/* -mtime +%s -exec rm {} \;" % cfg.yaml['expiration']['expire_days'], shell=True)
 
                 # monitoring + hodinove statistiky
                 p = subprocess.Popen(["du -sh", ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -338,40 +281,40 @@ def main():
                 text = ("Hourly statistics:\nALARMS count: %s\nFalse alarms count: %s\n\nError count: %s\n\nTotal size of dir: %s" %
                     (stats_true, stats_false, err_count, out))
                 logger.log(text)
-                if mail_opt:
-                    send_mail("Camera stats", text)
+                if cfg.mail_opt:
+                    send_mail(cfg.yaml, "Camera stats", text)
 
                 stats_true = 0
                 stats_false = 0
                 err_count = 0
                 prev_hour = hour
 
-            if ftp_opt:
-                fetch_files(ftp)
+            if cfg.ftp_opt:
+                fetch_files(ftp, cfg.yaml, logger)
 
             # TODO lepsi prace se soubory, pres pythoni libky
             # TODO lepe zpracovat davku (nenacitat znovu porad dokola)
-            p = subprocess.Popen("find %s -maxdepth 1 -type f | grep ARC | grep -v diff | sort -r | head -n%s" % (input_dir, input_batch_size),
+            p = subprocess.Popen("find %s -maxdepth 1 -type f | grep ARC | grep -v diff | sort -r | head -n%s" % (cfg.yaml["main"]["input_dir"], cfg.input_batch_size),
                 stdout=subprocess.PIPE, shell=True)
             (output, err) = p.communicate()
             p_status = p.wait()
 
             files = output.split()
             if not files:
-                if once_opt:
+                if cfg.once_opt:
                     # pokud nechcem sluzbu a mame zpracovano, koncime
                     break
-                logger.log("no files to compare, sleeping for %s seconds.." % config['main']['sleep_sec'])
-                sleep(config['main']['sleep_sec'])
+                logger.log("no files to compare, sleeping for %s seconds.." % cfg.yaml['main']['sleep_sec'])
+                sleep(cfg.yaml['main']['sleep_sec'])
                 continue
-            if len(files) < input_batch_size:
-                logger.log("less than %s files to compare, trying again.." % input_batch_size)
+            if len(files) < cfg.input_batch_size:
+                logger.log("less than %s files to compare, trying again.." % cfg.input_batch_size)
                 sleep(1)
                 continue
 
-            logger.log("%s files to compare" % (len(files), ))
+            logger.log("%s files to compare: %s" % (len(files), files))
 
-            if process(files, mail_opt):
+            if process_mp(cfg, logger, sess, model, files):
                 stats_true += 1
             else:
                 stats_false += 1
@@ -383,9 +326,9 @@ def main():
             traceback.print_exc(file=stdout)
             logger.log("%s" %ex, level="ERROR")
             traceback.print_exc(file=logger.log_file)
-            if mail_opt:
+            if cfg.mail_opt:
                 try:
-                    send_mail('Camera ALARM: Error', "%s" % ex, notify=True)
+                    send_mail(cfg.yaml, 'Camera ALARM: Error', "%s" % ex, notify=True)
                 except Exception as ex:
                     logger.log("sending error mail failed");
                     logger.log("%s" %ex, level="ERROR")
@@ -395,7 +338,7 @@ def main():
 
     logger.log("Too many errors in one hour, giving up...");
 
-    if ftp_opt:
+    if cfg.ftp_opt:
         ftp.quit()
 
     logger.close()
