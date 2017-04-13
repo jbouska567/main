@@ -6,9 +6,23 @@ main:
   alarm_dir: '/www/camera-filter/alarm'
   trash_dir: '/www/camera-filter/trash'
   error_dir: '/www/camera-filter/error'
+  model_dir: '/www/camera-filter/model'
   mail_opt: false
   ftp_opt: false
   input_batch_size: 2
+
+classifier:
+  # input image parameters
+  model_name: 'model-d2-c30-1h64-2h32-500'
+  image_div: 2
+  cluster_size: 30
+  image_size_x: 1920
+  image_size_y: 1080
+  channels: 1
+  # Network Parameters
+  n_hidden_1: 64 # 1st layer neurons
+  n_hidden_2: 32 # 2nd layer neurons
+  n_classes: 2 # total output classes
 
 # files expiration settings
 expiration:

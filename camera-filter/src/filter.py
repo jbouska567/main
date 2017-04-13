@@ -1,4 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+
+import numpy as np
+import tensorflow as tf
+from lib.multilayer_perceptron import MultilayerPerceptron
+from PIL import Image
+from lib.preprocess_image import difference_image, read_preprocess_image
 
 import subprocess
 import traceback
@@ -161,7 +167,6 @@ def send_mail(subj, text, files=None, notify=False):
 
 def process(files, mail_opt):
     # TODO toto by se melo provest jednou pri startu v nejake tride s nastavenim
-    input_dir = config['main']['input_dir']
     alarm_dir = config['main']['alarm_dir']
     trash_dir = config['main']['trash_dir']
     error_dir = config['main']['error_dir']
@@ -267,15 +272,60 @@ def process(files, mail_opt):
         if mail_opt:
             send_mail(subj, text, files=[files[0], files[-1], diff_file, ], notify=True)
         subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file, alarm_dir), shell=True)
-        subprocess.call("rm %s %s" % (diff_files, files[1:len(files)-1], ), shell=True)
+        subprocess.call("rm %s %s" % (diff_files, ' '.join(files[1:len(files)-1]), ), shell=True)
     else:
         logger.log("False alarm, diff: %s, zones diff sum: %s\nzones diffs: %s" % (diff, diff_zones_sum, diff_zones))
         subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file, trash_dir), shell=True)
-        subprocess.call("rm %s %s" % (diff_files, files[1:len(files)-1], ), shell=True)
+        subprocess.call("rm %s %s" % (diff_files, ' '.join(files[1:len(files)-1]), ), shell=True)
         result = False
 
     logger.log("----------")
     return result
+
+def get_np_img(file_name, image_size_x, image_size_y):
+    img = Image.open(file_name)
+    img = img.resize((image_size_x, image_size_y), Image.ANTIALIAS)
+    img = img.convert('L')
+    np_img = np.array(img.getdata(),dtype=np.uint8).reshape((image_size_y, image_size_x))
+    return np_img
+
+def process_mp(files, mail_opt, sess, model, image_size_x, image_size_y, cluster_size, n_input):
+    # TODO toto by se melo provest jednou pri startu v nejake tride s nastavenim
+    alarm_dir = config['main']['alarm_dir']
+    trash_dir = config['main']['trash_dir']
+    error_dir = config['main']['error_dir']
+
+    diff_file = files[-1][:-4] + "-diff.jpg"
+
+    np_img1 = get_np_img(files[0], image_size_x, image_size_y)
+    np_img2 = get_np_img(files[-1], image_size_x, image_size_y)
+    np_img_diff = difference_image(np_img1, np_img2)
+    img_diff = Image.fromarray(np_img_diff, mode='L')
+    img_diff.save(diff_file)
+    print "%s written" % diff_file
+
+    npi = read_preprocess_image(diff_file, cluster_size)
+    npi = npi.reshape(n_input)
+
+    cl = sess.run(tf.argmax(model.out_layer, 1), feed_dict={model.input_ph: [npi]})
+
+    if cl:
+        subj = 'Camera ALARM ' + strftime("%Y-%m-%d %H:%M:%S", localtime())
+        text = ""
+        logger.log("! ALARM " + text)
+        if mail_opt:
+            send_mail(subj, text, files=[files[0], files[-1], diff_file, ], notify=True)
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file, alarm_dir), shell=True)
+    else:
+        logger.log("False alarm")
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file, trash_dir), shell=True)
+
+    if len(files) > 2:
+        subprocess.call("rm %s" % (' '.join(files[1:len(files)-1]), ), shell=True)
+
+    logger.log("----------")
+    return cl
+
 
 def main():
     ftp_opt = False
@@ -306,8 +356,28 @@ def main():
     mail_opt = config['main']['mail_opt']
     if 'nomail' in options and options['nomail']:
         mail_opt = False
+
     input_batch_size = config['main']['input_batch_size']
     input_dir = config['main']['input_dir']
+    image_size_x = config['classifier']['image_size_x'] / config['classifier']['image_div']
+    image_size_y = config['classifier']['image_size_y'] / config['classifier']['image_div']
+    cluster_size = config['classifier']['cluster_size']
+    n_input = (image_size_x / cluster_size) * (image_size_y / cluster_size) * config['classifier']['channels']
+
+    # Construct model
+    model_path = config['main']['model_dir'] + '/' + config['classifier']['model_name']
+    model = MultilayerPerceptron(
+        n_input,
+        config['classifier']['n_hidden_1'],
+        config['classifier']['n_hidden_2'],
+        config['classifier']['n_classes'])
+    # Initializing the variables
+    init = tf.global_variables_initializer()
+    sess = tf.Session()
+    sess.run(init)
+    saver = tf.train.Saver()
+    print "opening model %s" % model_path
+    saver.restore(sess, model_path)
 
     prev_hour = get_hour()
     stats_true = 0
@@ -371,7 +441,8 @@ def main():
 
             logger.log("%s files to compare" % (len(files), ))
 
-            if process(files, mail_opt):
+            if process_mp(files, mail_opt, sess, model, image_size_x, image_size_y, cluster_size, n_input):
+#            if process(files, mail_opt):
                 stats_true += 1
             else:
                 stats_false += 1
