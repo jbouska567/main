@@ -30,7 +30,7 @@ def get_clustered_data_old(image, cluster_size):
             clustered_image[yr].append(diff_count)
     return clustered_image
 
-# Vraci soucty ctvercu v obracku po cluster_size x cluster_size
+# Vraci soucty ctvercu v obrazku pro cluster_size x cluster_size
 # normalizovane np.uint16 pokud je cluster_size > 16 (tj. 16x16x256)
 def get_clustered_data(image, cluster_size):
     clustered_img = sum_chunk(sum_chunk(image, cluster_size, axis=0), cluster_size, axis=1)
@@ -47,7 +47,8 @@ def read_preprocess_image(filename, cluster_size):
     #image = Image.open(filename)
     #image = np.array(Image.open(filename))
     # !!! v numpy je bug pri konvertu z PIL b/w image do numpy.array
-    # ale lze to obejit nasledovne (dava to nahodny data, prip. sefaultuje)
+    # (dava to nahodny data, prip. segfaultuje),
+    # ale lze to obejit nasledovne
     pil_image = Image.open(filename)
     image = np.reshape(pil_image.getdata(), (pil_image.size[1], pil_image.size[0]))
 

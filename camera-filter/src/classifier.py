@@ -37,8 +37,8 @@ channels = 1 # R,G,B = 3 B/W = 1
 
 # Network Parameters
 # TODO jaka je optimalni velikost pro danou ulohu a velikost dat?
-n_hidden_1 = 64 # 1st layer number of features #256
-n_hidden_2 = 32 # 2nd layer number of features  #64
+n_hidden_1 = 200 # 1st layer number of features #256
+n_hidden_2 = 100 # 2nd layer number of features  #64
 n_input = (image_size_x / cluster_size) * (image_size_y / cluster_size) * channels # MNIST data input
 n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vystupu ze site)
 
@@ -47,7 +47,7 @@ learning_rate = 0.0001
 training_epochs = 2000
 batch_size = 50
 eval_step = 10
-save_step = 500
+save_step = 100
 
 # Input data
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
@@ -55,7 +55,9 @@ save_step = 500
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
 #TODO do konfigu
 data_path = "/home/pepa/projects/camera_filter/learning/diff-%s" % image_size_x
-n_test_pct = 10 # procent testovacich dat
+# Testovaci sadu je vhodne pouzivat pro urceni nejlepsich parametru
+# Pro nauceni modelu pro provoz testovaci sadu nepotrebujeme
+n_test_pct = 0 # procent testovacich dat
 
 model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
 print model_name
@@ -64,20 +66,28 @@ y = tf.placeholder(tf.int64, shape=(None))
 
 def get_files(path):
     print "path = %s" % (path, )
-    cmd = "find %s -type f | grep 'c%s.pp' | sort -R" % (path, cluster_size)
+    cmd = "find %s -type f | grep 'c%s.pp' | sort" % (path, cluster_size)
     p = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
     print cmd
     (output, err) = p.communicate()
     p_status = p.wait()
     files = output.split()
-    n_files = len(files)
-    n_test = int(n_files / 100) * n_test_pct
-    n_train = n_files - n_test
-    train_files = files[:n_train]
-    test_files = files[n_train:]
-    print "Num files = %s" % (n_files, )
-    print "Train images = %s" % (n_train, )
-    print "Test images = %s" % (n_test, )
+
+    train_files = []
+    test_files = []
+    # jako testovaci bereme kazdy x-ty obrazek (x = int(100 / n_test_pct))
+    test_counter = int(100 / n_test_pct) if n_test_pct else 0
+    for file in files:
+        test_counter -= 1
+        if not test_counter:
+            test_files.append(file)
+            test_counter = int(100 / n_test_pct)
+        else:
+            train_files.append(file)
+
+    print "Num files = %s" % len(files)
+    print "Train images = %s" % len(train_files)
+    print "Test images = %s" % len(test_files)
     return train_files, test_files
 
 
@@ -179,13 +189,13 @@ def main(argv):
             if epoch % save_step == 0:
                 saver.save(sess, "./" + model_name, global_step=epoch)
             # toto je tu zamerne, kvuli snizeni vytizeni procesoru
-            sleep(2)
+#            sleep(0.3)
         print("Optimization Finished!")
 
         saver.save(sess, "./" + model_name)
 
         # TODO presunout do testeru
-        print "model.out_layeriction mismatches in test data:"
+        print "prediction mismatches in test data:"
         dt = 0
         df = 0
         mt = 0

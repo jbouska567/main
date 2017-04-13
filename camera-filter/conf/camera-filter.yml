@@ -6,9 +6,23 @@ main:
   alarm_dir: '/www/camera-filter/alarm'
   trash_dir: '/www/camera-filter/trash'
   error_dir: '/www/camera-filter/error'
+  model_dir: '/www/camera-filter/model'
   mail_opt: false
   ftp_opt: false
   input_batch_size: 2
+
+classifier:
+  # input image parameters
+  model_name: 'model-d2-c30-1h64-2h32-500'
+  image_div: 2
+  cluster_size: 30
+  image_size_x: 1920
+  image_size_y: 1080
+  channels: 1
+  # Network Parameters
+  n_hidden_1: 64 # 1st layer neurons
+  n_hidden_2: 32 # 2nd layer neurons
+  n_classes: 2 # total output classes
 
 # files expiration settings
 expiration:
@@ -18,137 +32,17 @@ expiration:
 #  alarm_expire_days: 3
 #  trash_expire_days: 3
 
-# motion detection algorithm settings
-#
-# Algorithm based on compare and convert tools from imagemagick package
-# between two differents pictures
-detect_compare:
-  fuzz: 12
-# Picture size from camera is 1920 x 1080
-# In extract structure are coordinates in format for segment:
-# width, height, x offset, y offset (base is left top corner)
-#TODO otazka je jestli davaj okrajove kontrolni zony vic uzitku nez skody
-#TODO na detekci svetel od aut by mozna stacila jen kontrolni zona na stene, ta pred vratkama je mozna zbytecna
-  zones:
-  - id: A
-    extract:
-    - 600
-    - 480
-    - 100
-    - 600
-    pct_thr: 7
-  - id: B
-    extract:
-    - 550
-    - 350
-    - 300
-    - 200
-    pct_thr: 7
-  - id: C
-    extract:
-    - 150
-    - 150
-    - 450
-    - 50
-    pct_thr: 7
-  - id: D
-    extract:
-    - 350
-    - 250
-    - 950
-    - 150
-    pct_thr: 7
-  - id: E
-    extract:
-    - 500
-    - 150
-    - 1250
-    - 450
-    pct_thr: 7
-# contra zones: when diff percent in contra_zone is over threshold,
-# then the diff is multiplied with "mult" constant and substracted from zones in "contra" array
-  contra_zones:
-# - id: 1
-#   extract:
-#   - 50
-#   - 200
-#   - 1870
-#   - 880
-#   pct_thr: 20
-#   contra:
-#   - B
-#   - C
-#   - D
-#   - E
-#   mult: 1
-  - id: 2
-    extract:
-    - 100
-    - 200
-    - 1820
-    - 50
-    pct_thr: 4
-    contra:
-    - C
-    - D
-    - E
-    mult: 1
-# - id: 3
-#   extract:
-#   - 200
-#   - 50
-#   - 1150
-#   - 0
-#   pct_thr: 20
-#   contra:
-#   - B
-#   - C
-#   - E
-#   mult: 1
-# - id: 4
-#   extract:
-#   - 50
-#   - 50
-#   - 1350
-#   - 300
-#   pct_thr: 20
-#   contra:
-#   - D
-#   mult: 1
-  - id: 5
-    extract:
-    - 100
-    - 50
-    - 400
-    - 0
-    pct_thr: 40
-    contra:
-    - C
-    mult: 1
-  - id: 6
-    extract:
-    - 150
-    - 100
-    - 140
-    - 75
-    pct_thr: 5
-    contra:
-    - A
-    - D
-    - E
-    mult: 5
-
 # FTP where are images downloaded from
 ftp:
-  ftp_server: ''
-  ftp_user: ''
-  ftp_passwd: ''
-  ftp_dir: ''
+  server: ''
+  user: ''
+  passwd: ''
+  dir: ''
 
 # Mail to send alarms and notification
 mail:
-  mail_server: 'smtp..'
-  mail_from: ''
-  mail_from_passwd: ''
-  mail_to: ''
+  server: 'smtp..'
+  from: ''
+  from_passwd: ''
+  to: ''
   notify_to: ''

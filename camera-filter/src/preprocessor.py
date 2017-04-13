@@ -5,6 +5,7 @@ import subprocess
 import os
 from lib.preprocess_image import difference_image, read_preprocess_image
 from PIL import Image
+from time import sleep
 
 #TODO promenne z yml configu
 
@@ -51,6 +52,7 @@ for d in sorted(tf_dirs):
             img_diff = Image.fromarray(np_img_diff, mode='L')
             img_diff.save(diff_file)
             print "%s written" % diff_file
+            sleep(0.5)
 
 #       # barevny 3 kanalovy diff
 #       diff_file_3 = out_dir + "/" + ("%s-diffc.png" % f2[:-4])
@@ -88,6 +90,8 @@ for d in sorted(tf_dirs):
                 npi_png = npi_png.astype(np.uint8)
                 png = Image.fromarray(npi_png, mode='L')
                 png.save(pp_file + ".png")
+
+            #sleep(0.5)
 
 
 

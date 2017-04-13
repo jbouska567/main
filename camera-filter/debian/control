@@ -10,8 +10,9 @@ Package: zoneway-camera-filter
 Architecture: all
 Depends:
  ${misc:Depends},
- imagemagick,
  python,
+ python-numpy,
+ python-pil,
  python-yaml
 Description: Zoneway IP camera alarm filter
  Tool for filtering false alarms from Zoneway IP camera
