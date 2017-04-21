@@ -17,7 +17,7 @@ BLUE="\[\e[34;1m\]"
 WHITE="\[\e[37;1m\]"
 
 #PS1="\t ${GREEN}\u@\h${END}:\w$ "
-PS1="\t ${BLUE}\u@\h${END}:\w$ "
+PS1="\t ${GREEN}\u@\h${END}:\w$ "
 
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
@@ -62,5 +62,5 @@ DEBCHANGE_AUTO_NMU=no
 export DEBEMAIL DEBFULLNAME DEBCHANGE_AUTO_NMU
 
 # mint-fortune
-/usr/bin/mint-fortune
+#/usr/bin/mint-fortune
 
