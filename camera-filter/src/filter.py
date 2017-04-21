@@ -439,7 +439,7 @@ def main():
                 sleep(1)
                 continue
 
-            logger.log("%s files to compare" % (len(files), ))
+            logger.log("%s files to compare: %s" % (len(files), files))
 
             if process_mp(files, mail_opt, sess, model, image_size_x, image_size_y, cluster_size, n_input):
 #            if process(files, mail_opt):
