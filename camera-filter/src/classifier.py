@@ -44,7 +44,7 @@ n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vyst
 
 # Parameters of learning
 learning_rate = 0.0001
-training_epochs = 2000
+training_epochs = 1000
 batch_size = 50
 eval_step = 10
 save_step = 500
@@ -55,7 +55,9 @@ save_step = 500
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
 #TODO do konfigu
 data_path = "/home/pepa/projects/camera_filter/learning/diff-%s" % image_size_x
-n_test_pct = 10 # procent testovacich dat
+# Testovaci sadu je vhodne pouzivat pro urceni nejlepsich parametru
+# Pro nauceni modelu pro provoz testovaci sadu nepotrebujeme
+n_test_pct = 0 # procent testovacich dat
 
 model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
 print model_name
@@ -179,7 +181,7 @@ def main(argv):
             if epoch % save_step == 0:
                 saver.save(sess, "./" + model_name, global_step=epoch)
             # toto je tu zamerne, kvuli snizeni vytizeni procesoru
-            sleep(2)
+            #sleep(1)
         print("Optimization Finished!")
 
         saver.save(sess, "./" + model_name)
