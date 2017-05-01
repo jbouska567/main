@@ -21,6 +21,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 
+# TODO opravit osetreni chyby s neuplne stazenou fotkou
+
 # TODO spusteni po startu systemu
 
 # TODO doplnit debian zavislosti
