@@ -46,8 +46,8 @@ n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vyst
 learning_rate = 0.0001
 training_epochs = 1000
 batch_size = 50
-eval_step = 10
-save_step = 500
+eval_step = 1
+save_step = 2000
 
 # Input data
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
@@ -57,16 +57,15 @@ save_step = 500
 data_path = "/home/pepa/projects/camera_filter/learning/diff-%s" % image_size_x
 # Testovaci sadu je vhodne pouzivat pro urceni nejlepsich parametru
 # Pro nauceni modelu pro provoz testovaci sadu nepotrebujeme
-n_test_pct = 0 # procent testovacich dat
-
-model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
-print model_name
+n_test_pct = 20 # procent testovacich dat
 
 y = tf.placeholder(tf.int64, shape=(None))
 
 def get_files(path):
     print "path = %s" % (path, )
-    cmd = "find %s -type f | grep 'c%s.pp' | sort -R" % (path, cluster_size)
+    # myrand je nahodny soubor vygenerovany `dd if=/dev/urandom of=myrand count=1024`
+    # zajistuje to pokazde stejne nahodne razeni
+    cmd = "find %s -type f | grep 'c%s.pp' | sort -R --random-source=myrand" % (path, cluster_size)
     p = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
     print cmd
     (output, err) = p.communicate()
@@ -99,10 +98,13 @@ def get_images_labels(files):
     np_labels = np.array(labels)
     return np_images, np_labels
 
-def main(argv):
+def main_x(argv, p_n_hidden_1, p_n_hidden_2):
+
+    model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, p_n_hidden_1, p_n_hidden_2)
+    print model_name
 
     # Construct model
-    model = MultilayerPerceptron(n_input, n_hidden_1, n_hidden_2, n_classes)
+    model = MultilayerPerceptron(n_input, p_n_hidden_1, p_n_hidden_2, n_classes)
 
     # Define loss function
     cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=model.out_layer, labels=y)) #label je index spravneho vystupu
@@ -135,11 +137,15 @@ def main(argv):
         end = time.time()
         print "testing data complete (%s s)" % (end - start)
 
+        # TODO pokud bysme potrebovali usetrit pamet, budeme muset nacitat image po davkach
+        # pro kazdou epochu znovu
         print "reading training data"
         start = time.time()
         train_images, train_labels = get_images_labels(train_files)
         end = time.time()
         print "training data complete (%s s)" % (end - start)
+
+        log_file = open('log-1h%s-2h%s' % (p_n_hidden_1, p_n_hidden_2), 'w')
 
         best_acc = 0
         # Training cycle
@@ -175,42 +181,49 @@ def main(argv):
                 test_acc = accuracy.eval({model.input_ph: test_images, y: test_labels})
                 print("Accuracy on train images:", train_acc)
                 print("Accuracy on test images:", test_acc)
+                log_file.write('%s\t%s\t%s\n' % (epoch, train_acc, test_acc))
                 if (train_acc + test_acc) > best_acc:
                     best_acc = train_acc + test_acc
-                    saver.save(sess, "./" + model_name, global_step=epoch)
+                    #saver.save(sess, "./" + model_name, global_step=epoch)
             if epoch % save_step == 0:
                 saver.save(sess, "./" + model_name, global_step=epoch)
             # toto je tu zamerne, kvuli snizeni vytizeni procesoru
-            #sleep(1)
+            #sleep(0.2)
         print("Optimization Finished!")
 
+        log_file.close()
         saver.save(sess, "./" + model_name)
 
         # TODO presunout do testeru
-        print "model.out_layeriction mismatches in test data:"
-        dt = 0
-        df = 0
-        mt = 0
-        mf = 0
-        for n, test_image in enumerate(test_images):
-            cl = sess.run(tf.argmax(model.out_layer, 1), feed_dict={model.input_ph: [test_image]})
-            label = test_labels[n]
-            if label:
-                dt = dt + 1
-            else:
-                df = df + 1
-            if cl != label:
-                print "Prediction: %s, label: %s, test file: %s" % (cl, label, test_files[n])
-                if label:
-                    mt = mt + 1
-                else:
-                    mf = mf + 1
-        print "Model %s" % model_name
-        train_acc = accuracy.eval({model.input_ph: train_images, y: train_labels})
-        test_acc = accuracy.eval({model.input_ph: test_images, y: test_labels})
-        print("Accuracy on train images:", train_acc)
-        print("Accuracy on test images:", test_acc)
-        print "%s/%s true and %s/%s false mismatches on test images" % (mt, dt, mf, df)
+#       print "Prediction mismatches in test data:"
+#       dt = 0
+#       df = 0
+#       mt = 0
+#       mf = 0
+#       for n, test_image in enumerate(test_images):
+#           cl = sess.run(tf.argmax(model.out_layer, 1), feed_dict={model.input_ph: [test_image]})
+#           label = test_labels[n]
+#           if label:
+#               dt = dt + 1
+#           else:
+#               df = df + 1
+#           if cl != label:
+#               print "Prediction: %s, label: %s, test file: %s" % (cl, label, test_files[n])
+#               if label:
+#                   mt = mt + 1
+#               else:
+#                   mf = mf + 1
+#       print "Model %s" % model_name
+#       train_acc = accuracy.eval({model.input_ph: train_images, y: train_labels})
+#       test_acc = accuracy.eval({model.input_ph: test_images, y: test_labels})
+#       print("Accuracy on train images:", train_acc)
+#       print("Accuracy on test images:", test_acc)
+#       print "%s/%s true and %s/%s false mismatches on test images" % (mt, dt, mf, df)
+
+def main(argv):
+    for h1 in range(50, 121, 5):
+        for h2 in range(5, 41, 5):
+            main_x(argv, h1, h2)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
