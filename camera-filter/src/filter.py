@@ -21,8 +21,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 
-# TODO opravit osetreni chyby s neuplne stazenou fotkou
-
 # TODO spusteni po startu systemu
 
 # TODO doplnit debian zavislosti
@@ -154,7 +152,7 @@ def fetch_files(ftp, cfg_yaml, logger):
     sleep(1)
 
 
-def send_mail(cfg_yaml, subj, text, files=None, notify=False):
+def send_mail(logger, cfg_yaml, subj, text, files=None, notify=False):
 
     msg = MIMEMultipart()
     msg['From'] = cfg_yaml['mail']['from']
@@ -174,11 +172,20 @@ def send_mail(cfg_yaml, subj, text, files=None, notify=False):
             msg.attach(part)
 
     smtp = smtplib.SMTP()
-
-    smtp.connect(cfg_yaml['mail']['server'], 587) #port 587 TLS, 25 nezabezpecene spojeni
-    smtp.ehlo()     #TLS only
-    smtp.starttls() #TLS only
-    smtp.login(cfg_yaml['mail']['from'], cfg_yaml['mail']['from_passwd'])
+    tries = 5
+    while tries:
+        try:
+            smtp.connect(cfg_yaml['mail']['server'], 587) #port 587 TLS, 25 nezabezpecene spojeni
+            smtp.ehlo()     #TLS only
+            smtp.starttls() #TLS only
+            smtp.login(cfg_yaml['mail']['from'], cfg_yaml['mail']['from_passwd'])
+            tries = 0
+        except Exception as ex:
+            logger.log("%s" %ex, level="ERROR")
+            sleep(5 - tries)
+            tries = tries - 1
+            if not tries:
+                raise ex
 
     smtp.sendmail(cfg_yaml['mail']['from'], cfg_yaml['mail']['to'], msg.as_string())
 
@@ -203,25 +210,40 @@ def get_np_img(file_name, image_size_x, image_size_y):
 def process_mp(cfg, logger, sess, model, files):
 
     diff_file = files[-1][:-4] + "-diff.jpg"
+    time_str = strftime("%Y-%m-%d %H:%M:%S", localtime())
 
-    np_img1 = get_np_img(files[0], cfg.image_size_x, cfg.image_size_y)
-    np_img2 = get_np_img(files[-1], cfg.image_size_x, cfg.image_size_y)
-    np_img_diff = difference_image(np_img1, np_img2)
-    img_diff = Image.fromarray(np_img_diff, mode='L')
-    img_diff.save(diff_file)
-    print "%s written" % diff_file
+    try:
+        np_img1 = get_np_img(files[0], cfg.image_size_x, cfg.image_size_y)
+        np_img2 = get_np_img(files[-1], cfg.image_size_x, cfg.image_size_y)
+        np_img_diff = difference_image(np_img1, np_img2)
+        img_diff = Image.fromarray(np_img_diff, mode='L')
+        img_diff.save(diff_file)
+        print "%s written" % diff_file
+    except Exception as ex:
+        if cfg.mail_opt:
+            send_mail(logger, cfg.yaml, 'Camera ALARM Error ' + time_str,
+                "Error while preprocessing images", files=[files[0], files[-1]], notify=True)
+        subprocess.call("mv %s %s %s/" % (files[0], files[-1],
+            cfg.yaml['main']['error_dir']), shell=True)
+        raise ex
 
-    npi = read_preprocess_image(diff_file, cfg.cluster_size)
-    npi = npi.reshape(cfg.n_input)
-
-    cl = sess.run(tf.argmax(model.out_layer, 1), feed_dict={model.input_ph: [npi]})
+    try:
+        npi = read_preprocess_image(diff_file, cfg.cluster_size)
+        npi = npi.reshape(cfg.n_input)
+        cl = sess.run(tf.argmax(model.out_layer, 1), feed_dict={model.input_ph: [npi]})
+    except Exception as ex:
+        if cfg.mail_opt:
+            send_mail(logger, cfg.yaml, 'Camera ALARM Error ' + time_str,
+                "Error while evaluating images", files=[files[0], files[-1], diff_file], notify=True)
+        subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file,
+            cfg.yaml['main']['error_dir']), shell=True)
+        raise ex
 
     if cl:
-        subj = 'Camera ALARM ' + strftime("%Y-%m-%d %H:%M:%S", localtime())
-        text = ""
-        logger.log("! ALARM " + text)
+        logger.log("! ALARM")
         if cfg.mail_opt:
-            send_mail(cfg.yaml, subj, text, files=[files[0], files[-1], diff_file, ], notify=True)
+            send_mail(logger, cfg.yaml, 'Camera ALARM ' + time_str, '',
+                files=[files[0], files[-1], diff_file], notify=True)
         subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file,
             cfg.yaml['main']['alarm_dir']), shell=True)
     else:
@@ -264,7 +286,7 @@ def main():
 
     err_count = 0
 
-    while(err_count < 5):
+    while(err_count < 60):
         try:
             hour = get_hour()
             if prev_hour != hour:
@@ -284,7 +306,7 @@ def main():
                     (stats_true, stats_false, err_count, out))
                 logger.log(text)
                 if cfg.mail_opt:
-                    send_mail(cfg.yaml, "Camera stats", text)
+                    send_mail(logger, cfg.yaml, "Camera stats", text)
 
                 stats_true = 0
                 stats_false = 0
@@ -296,6 +318,7 @@ def main():
 
             # TODO lepsi prace se soubory, pres pythoni libky
             # TODO lepe zpracovat davku (nenacitat znovu porad dokola)
+            # TODO co se souborama s nulovym timestampem? (rozhodi nam parovani fotek)
             p = subprocess.Popen("find %s -maxdepth 1 -type f | grep ARC | grep -v diff | sort -r | head -n%s" % (cfg.yaml["main"]["input_dir"], cfg.input_batch_size),
                 stdout=subprocess.PIPE, shell=True)
             (output, err) = p.communicate()
@@ -330,7 +353,7 @@ def main():
             traceback.print_exc(file=logger.log_file)
             if cfg.mail_opt:
                 try:
-                    send_mail(cfg.yaml, 'Camera ALARM: Error', "%s" % ex, notify=True)
+                    send_mail(logger, cfg.yaml, 'Camera ALARM Error', "%s" % ex, notify=True)
                 except Exception as ex:
                     logger.log("sending error mail failed");
                     logger.log("%s" %ex, level="ERROR")
