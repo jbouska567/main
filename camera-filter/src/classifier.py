@@ -57,7 +57,7 @@ save_step = 500
 data_path = "/home/pepa/projects/camera_filter/learning/diff-%s" % image_size_x
 # Testovaci sadu je vhodne pouzivat pro urceni nejlepsich parametru
 # Pro nauceni modelu pro provoz testovaci sadu nepotrebujeme
-n_test_pct = 0 # procent testovacich dat
+n_test_pct = 10 # procent testovacich dat
 
 model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
 print model_name
@@ -66,20 +66,28 @@ y = tf.placeholder(tf.int64, shape=(None))
 
 def get_files(path):
     print "path = %s" % (path, )
-    cmd = "find %s -type f | grep 'c%s.pp' | sort -R" % (path, cluster_size)
+    cmd = "find %s -type f | grep 'c%s.pp' | sort" % (path, cluster_size)
     p = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True)
     print cmd
     (output, err) = p.communicate()
     p_status = p.wait()
     files = output.split()
-    n_files = len(files)
-    n_test = int(n_files / 100) * n_test_pct
-    n_train = n_files - n_test
-    train_files = files[:n_train]
-    test_files = files[n_train:]
-    print "Num files = %s" % (n_files, )
-    print "Train images = %s" % (n_train, )
-    print "Test images = %s" % (n_test, )
+
+    train_files = []
+    test_files = []
+    # jako testovaci bereme kazdy x-ty obrazek (x = int(100 / n_test_pct))
+    test_counter = int(100 / n_test_pct)
+    for file in files:
+        test_counter -= 1
+        if not test_counter:
+            test_files.append(file)
+            test_counter = int(100 / n_test_pct)
+        else:
+            train_files.append(file)
+
+    print "Num files = %s" % len(files)
+    print "Train images = %s" % len(train_files)
+    print "Test images = %s" % len(test_files)
     return train_files, test_files
 
 
@@ -181,7 +189,7 @@ def main(argv):
             if epoch % save_step == 0:
                 saver.save(sess, "./" + model_name, global_step=epoch)
             # toto je tu zamerne, kvuli snizeni vytizeni procesoru
-            #sleep(1)
+            sleep(0.5)
         print("Optimization Finished!")
 
         saver.save(sess, "./" + model_name)
