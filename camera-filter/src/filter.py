@@ -21,14 +21,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
 
-# TODO spusteni po startu systemu
 
 # TODO doplnit debian zavislosti
 
+# TODO spusteni po startu systemu, nebo
 # TODO udelat z toho service
-# TODO pozor na posilani chyb az to bude sluzba, mohlo by se stat, ze pri nejake nezotavitelne chybe me to pekne vyspamuje!
-
-# TODO trida Configuration, ktera by ulozila nastaveni do clenskych promennych
+# TODO (pozor na posilani chyb az to bude sluzba, mohlo by se stat, ze pri nejake nezotavitelne chybe me to pekne vyspamuje!)
 
 # TODO zlepsit nacitani z FTP
 
@@ -295,10 +293,11 @@ def main():
                     logger.rotate()
 
                     logger.log("Deleting files from alarm and trash older than %s days" % cfg.yaml['expiration']['expire_days'])
-                    subprocess.call("find trash/* -mtime +%s -exec rm {} \;" % cfg.yaml['expiration']['expire_days'], shell=True)
-                    subprocess.call("find alarm/* -mtime +%s -exec rm {} \;" % cfg.yaml['expiration']['expire_days'], shell=True)
+                    subprocess.call("find trash/* -mtime +%s -delete" % cfg.yaml['expiration']['expire_days'], shell=True)
+                    subprocess.call("find alarm/* -mtime +%s -delete" % cfg.yaml['expiration']['expire_days'], shell=True)
 
                 # monitoring + hodinove statistiky
+                # TODO toto nefunguje kvuli defaultni ceste u Popen
                 p = subprocess.Popen(["du -sh", ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                 (out, err) = p.communicate()
                 status = p.wait()
