@@ -1,4 +1,4 @@
-zoneway-camera-filter (2.0.0) UNRELEASED; urgency=medium
+zoneway-camera-filter (2.0.0) xenial; urgency=medium
 
   * variable count of input files
   * using multilayer perceptron for image classification
@@ -6,7 +6,7 @@ zoneway-camera-filter (2.0.0) UNRELEASED; urgency=medium
   * better error handling
   * controlling by systemd
 
- -- Josef Bouska <bow.ska@seznam.cz>  Tue, 11 Apr 2017 15:45:42 +0200
+ -- Josef Bouska <bow.ska@seznam.cz>  Sun, 18 Mar 2018 15:30:42 +0100
 
 zoneway-camera-filter (1.1.1) unstable; urgency=medium
 
