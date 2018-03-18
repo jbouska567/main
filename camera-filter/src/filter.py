@@ -96,6 +96,7 @@ class Logger:
         line = strftime("%Y-%m-%d %H:%M:%S ", localtime()) + level + ": " + text
         print line
         self.log_file.write(line + "\n")
+        self.log_file.flush()
 
     def close(self):
         self.log_file.close()
@@ -283,7 +284,7 @@ def main():
 
     err_count = 0
 
-    while(err_count < 30):
+    while(err_count < 10):
         try:
             hour = get_hour()
             if prev_hour != hour:
