@@ -284,7 +284,7 @@ def main():
 
     err_count = 0
 
-    while(err_count < 10):
+    while(err_count < 2):
         try:
             hour = get_hour()
             if prev_hour != hour:

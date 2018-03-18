@@ -2,10 +2,6 @@
 Description=Camera filter - server that filters false alarms
 After=multi-user.target
 
-# Try to start for 5 times in 120 sec
-StartLimitBurst=5
-StartLimitInterval=120
-
 [Service]
 ExecStart=/www/camera-filter/bin/filter.py -f /www/camera-filter/conf/camera-filter.yml
 
@@ -15,6 +11,10 @@ Group=nogroup
 Restart=always
 # Start after 5 sec
 RestartSec=5
+
+# Try to start for 10 times in 240 sec
+StartLimitBurst=10
+StartLimitInterval=240
 
 [Install]
 WantedBy=multi-user.target
