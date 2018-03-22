@@ -259,6 +259,7 @@ def process_mp(cfg, logger, sess, model, files):
 def main():
     cfg = Configuration()
     logger = Logger(cfg.yaml)
+    logger.log("Starting camera filter")
 
     # Construct model
     model_path = cfg.yaml['main']['model_dir'] + '/' + cfg.yaml['classifier']['model_name']
@@ -272,7 +273,7 @@ def main():
     sess = tf.Session()
     sess.run(init)
     saver = tf.train.Saver()
-    print "opening model %s" % model_path
+    logger.log("Opening model %s" % model_path)
     saver.restore(sess, model_path)
 
     prev_hour = get_hour()
