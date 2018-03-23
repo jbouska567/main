@@ -27,10 +27,6 @@ classifier:
 # files expiration settings
 expiration:
   log_expire_days: 14
-  expire_days: 3
-#TODO rozdelit nastaveni
-#  alarm_expire_days: 3
-#  trash_expire_days: 3
 
 # FTP where are images downloaded from
 ftp:

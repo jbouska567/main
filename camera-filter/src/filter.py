@@ -289,13 +289,9 @@ def main():
         try:
             hour = get_hour()
             if prev_hour != hour:
-                # logrotate a expirace starych souboru o pulnoci
+                # logrotate
                 if hour == 0:
                     logger.rotate()
-
-                    logger.log("Deleting files from alarm and trash older than %s days" % cfg.yaml['expiration']['expire_days'])
-                    subprocess.call("find trash/* -mtime +%s -delete" % cfg.yaml['expiration']['expire_days'], shell=True)
-                    subprocess.call("find alarm/* -mtime +%s -delete" % cfg.yaml['expiration']['expire_days'], shell=True)
 
                 # monitoring + hodinove statistiky
                 p = subprocess.Popen(["du -sh /www/camera-filter/", ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)

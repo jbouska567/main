@@ -1,3 +1,9 @@
+zoneway-camera-filter (2.0.1) UNRELEASED; urgency=medium
+
+  * expiration from cron
+
+ -- Josef Bouska <bow.ska@seznam.cz>  Fri, 23 Mar 2018 20:45:57 +0100
+
 zoneway-camera-filter (2.0.0) xenial; urgency=medium
 
   * variable count of input files
