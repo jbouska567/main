@@ -7,3 +7,6 @@
 /www/camera-filter/model
 /www/camera-filter/trash
 /www/camera-filter/error
+/www/camera-filter/learning
+/www/camera-filter/learning/true
+/www/camera-filter/learning/false

@@ -94,7 +94,7 @@ class Logger:
 
     def log(self, text, level="INFO"):
         line = strftime("%Y-%m-%d %H:%M:%S ", localtime()) + level + ": " + text
-        print line
+        #print line
         self.log_file.write(line + "\n")
         self.log_file.flush()
 
@@ -240,7 +240,7 @@ def process_mp(cfg, logger, sess, model, files):
     if cl:
         logger.log("! ALARM")
         if cfg.mail_opt:
-            send_mail(logger, cfg.yaml, 'Camera ALARM ' + time_str, '',
+            send_mail(logger, cfg.yaml, 'Camera ALARM %s (%s, %s)' % (time_str, basename(files[0]), basename(files[-1])), '',
                 files=[files[0], files[-1], diff_file], notify=True)
         subprocess.call("mv %s %s %s %s/" % (files[0], files[-1], diff_file,
             cfg.yaml['main']['alarm_dir']), shell=True)

@@ -11,6 +11,7 @@ Architecture: all
 Depends:
  ${misc:Depends},
  python,
+ python-html2text,
  python-numpy,
  python-pil,
  python-yaml

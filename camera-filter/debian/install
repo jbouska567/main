@@ -1,4 +1,5 @@
 src/filter.py /www/camera-filter/bin
+src/mailer.py /www/camera-filter/bin
 src/lib/__init__.py /www/camera-filter/bin/lib
 src/lib/multilayer_perceptron.py /www/camera-filter/bin/lib
 src/lib/preprocess_image.py /www/camera-filter/bin/lib
