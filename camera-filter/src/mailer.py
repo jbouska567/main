@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from lib.config import OptionParser, Configuration
 import poplib
 import email
 import email.parser
@@ -173,8 +174,10 @@ class pop3_inbox:
         self.messages_index+=1
         return MESSAGE
 
-def getMail(server,userid,password):
-    inbox=pop3_inbox(server, userid, password)
+def getMail(cfg):
+    data_dir = cfg.yaml['main']['learn_dir'] + "/pictures"
+
+    inbox=pop3_inbox(cfg.yaml['mail']['pop_server'], cfg.yaml['mail']['login'], cfg.yaml['mail']['password'])
     if inbox.result:
         emsg="Connection error with pop3.."
         print emsg
@@ -204,10 +207,9 @@ def getMail(server,userid,password):
                 print "Neither True nor False in mail body"
                 continue
             dest = "true" if tf == "t" else "false"
-            dest_dir = "/www/camera-filter/learning/%s" % dest
+            dest_dir = "%s/%s" % (data_dir, dest)
             # searching not only in alarm dir, because we need to support change location between false or true
-            for source in ["alarm", "learning/true", "learning/false"]:
-                source_dir = "/www/camera-filter/%s" % source
+            for source_dir in [cfg.yaml['main']['alarm'], data_dir + "/true", data_dir + "/false"]:
                 all_files = True
                 for f in files:
                     if not os.path.isfile("%s/%s" % (source_dir, f)):
@@ -237,8 +239,14 @@ def getMail(server,userid,password):
     #if inbox.msgcount: inbox.remove(range(1, inbox.msgcount+1))
     inbox.close()
 
-server = "pop.gmail.com"
-userid = "kamera56712@gmail.com"
-password = "jbzw12345"
+def main(argv):
+    parser = OptionParser()
+    options, args = parser.parse_args_dict()
 
-getMail(server,userid,password)
+    cfg = Configuration(options)
+
+    getMail(cfg)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

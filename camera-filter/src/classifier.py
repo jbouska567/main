@@ -5,6 +5,7 @@ import subprocess
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+from lib.config import OptionParser, Configuration
 from lib.multilayer_perceptron import MultilayerPerceptron
 from lib.preprocess_image import get_image_label
 import random
@@ -53,14 +54,9 @@ save_step = 100
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
 # slozky zacinajici na t (jako true) jsou brany jako pozitivni klasifikace
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
-#TODO do konfigu
-data_path = "/home/pepa/projects/camera_filter/learning/diff-%s" % image_size_x
 # Testovaci sadu je vhodne pouzivat pro urceni nejlepsich parametru
 # Pro nauceni modelu pro provoz testovaci sadu nepotrebujeme
 n_test_pct = 0 # procent testovacich dat
-
-model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
-print model_name
 
 y = tf.placeholder(tf.int64, shape=(None))
 
@@ -108,6 +104,16 @@ def get_images_labels(files):
     return np_images, np_labels
 
 def main(argv):
+    parser = OptionParser()
+    options, args = parser.parse_args_dict()
+
+    cfg = Configuration(options)
+
+    learn_dir = cfg.yaml['main']['learn_dir']
+    data_dir = "%s/diff-%s" % (learn_dir, image_size_x)
+
+    model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
+    print model_name
 
     # Construct model
     model = MultilayerPerceptron(n_input, n_hidden_1, n_hidden_2, n_classes)
@@ -135,7 +141,7 @@ def main(argv):
     with tf.Session() as sess:
         sess.run(init)
 
-        train_files, test_files = get_files(data_path)
+        train_files, test_files = get_files(data_dir)
         n_train = len(train_files)
         print "reading testing data"
         start = time.time()
@@ -185,14 +191,14 @@ def main(argv):
                 print("Accuracy on test images:", test_acc)
                 if (train_acc + test_acc) > best_acc:
                     best_acc = train_acc + test_acc
-                    saver.save(sess, "./" + model_name, global_step=epoch)
+                    saver.save(sess, "%s/%s" % (learn_dir, model_name), global_step=epoch)
             if epoch % save_step == 0:
-                saver.save(sess, "./" + model_name, global_step=epoch)
+                saver.save(sess, "%s/%s" % (learn_dir, model_name), global_step=epoch)
             # toto je tu zamerne, kvuli snizeni vytizeni procesoru
-#            sleep(0.3)
+            #sleep(0.5)
         print("Optimization Finished!")
 
-        saver.save(sess, "./" + model_name)
+        saver.save(sess, "%s/%s" % (learn_dir, model_name))
 
         # TODO presunout do testeru
         print "prediction mismatches in test data:"

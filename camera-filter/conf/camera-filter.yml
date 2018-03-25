@@ -7,6 +7,7 @@ main:
   trash_dir: '/www/camera-filter/trash'
   error_dir: '/www/camera-filter/error'
   model_dir: '/www/camera-filter/model'
+  learn_dir: '/www/camera-filter/learning'
   mail_opt: false
   ftp_opt: false
   input_batch_size: 2
@@ -31,14 +32,15 @@ expiration:
 # FTP where are images downloaded from
 ftp:
   server: ''
-  user: ''
-  passwd: ''
+  login: ''
+  password: ''
   dir: ''
 
 # Mail to send alarms and notification
 mail:
-  server: 'smtp..'
-  from: ''
-  from_passwd: ''
+  smtp_server: 'smtp..'
+  pop_server: 'pop..'
+  login: ''
+  password: ''
   to: ''
   notify_to: ''

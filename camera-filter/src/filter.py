@@ -3,6 +3,7 @@
 import numpy as np
 import tensorflow as tf
 from lib.multilayer_perceptron import MultilayerPerceptron
+from lib.config import OptionParser, Configuration
 from PIL import Image
 from lib.preprocess_image import difference_image, read_preprocess_image
 
@@ -11,8 +12,6 @@ import traceback
 from sys import exit, argv, stdin, stdout
 from time import localtime, strftime, sleep
 from ftplib import FTP
-from optparse import OptionParser as BaseParser
-import yaml
 
 import smtplib
 from os.path import basename
@@ -33,45 +32,6 @@ from email.utils import COMMASPACE, formatdate
 
 def build_dict(seq, key):
     return dict((d[key], dict(d, index=index)) for (index, d) in enumerate(seq))
-
-class OptionParser(BaseParser):
-    def __init__(self, **kwargs):
-        BaseParser.__init__(self, **kwargs)
-
-        self.add_option('-f', '--config', help='the config file')
-        self.add_option('-v', '--verbose', action='store_true')
-
-    def parse_args_dict(self):
-        options, args = self.parse_args()
-        return vars(options), args
-
-class Configuration:
-    def __init__(self):
-        parser = OptionParser()
-        parser.add_option('--once', action='store_true', help='start once, only to process batch')
-        parser.add_option('--noftp', action='store_true', help='prevent loading files from FTP server (overrides config)')
-        parser.add_option('--nomail', action='store_true', help='prevent sending mail (overrides config)')
-        options, args = parser.parse_args_dict()
-        config_file = options['config']
-        if not config_file:
-            parser.print_help()
-            raise Exception("Config file argument is requeired")
-
-        stream = open(config_file)
-        self.yaml = yaml.load(stream)
-        self.once_opt = ('once' in options) and (options['once'] is True)
-        self.ftp_opt = self.yaml['main']['ftp_opt']
-        if 'noftp' in options and options['noftp']:
-            self.ftp_opt = False
-        self.mail_opt = self.yaml['main']['mail_opt']
-        if 'nomail' in options and options['nomail']:
-            self.mail_opt = False
-
-        self.input_batch_size = self.yaml['main']['input_batch_size']
-        self.image_size_x = self.yaml['classifier']['image_size_x'] / self.yaml['classifier']['image_div']
-        self.image_size_y = self.yaml['classifier']['image_size_y'] / self.yaml['classifier']['image_div']
-        self.cluster_size = self.yaml['classifier']['cluster_size']
-        self.n_input = (self.image_size_x / self.cluster_size) * (self.image_size_y / self.cluster_size) * self.yaml['classifier']['channels']
 
 
 #TODO nejake standardni logovani
@@ -106,7 +66,7 @@ def get_hour():
 
 def connect_ftp(cfg_yaml):
     ftp = FTP(cfg_yaml['ftp']['server'])
-    ftp.login(cfg_yaml['ftp']['user'], cfg_yaml['ftp']['passwd'])
+    ftp.login(cfg_yaml['ftp']['login'], cfg_yaml['ftp']['password'])
     ftp.cwd(cfg_yaml['ftp']['dir'])
     return ftp
 
@@ -153,7 +113,7 @@ def fetch_files(ftp, cfg_yaml, logger):
 def send_mail(logger, cfg_yaml, subj, text, files=None, notify=False):
 
     msg = MIMEMultipart()
-    msg['From'] = cfg_yaml['mail']['from']
+    msg['From'] = cfg_yaml['mail']['login']
     msg['To'] = cfg_yaml['mail']['to']
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subj
@@ -173,10 +133,10 @@ def send_mail(logger, cfg_yaml, subj, text, files=None, notify=False):
     tries = 5
     while tries:
         try:
-            smtp.connect(cfg_yaml['mail']['server'], 587) #port 587 TLS, 25 nezabezpecene spojeni
+            smtp.connect(cfg_yaml['mail']['smtp_server'], 587) #port 587 TLS, 25 nezabezpecene spojeni
             smtp.ehlo()     #TLS only
             smtp.starttls() #TLS only
-            smtp.login(cfg_yaml['mail']['from'], cfg_yaml['mail']['from_passwd'])
+            smtp.login(cfg_yaml['mail']['login'], cfg_yaml['mail']['password'])
             tries = 0
         except Exception as ex:
             logger.log("%s" %ex, level="ERROR")
@@ -185,16 +145,16 @@ def send_mail(logger, cfg_yaml, subj, text, files=None, notify=False):
             if not tries:
                 raise ex
 
-    smtp.sendmail(cfg_yaml['mail']['from'], cfg_yaml['mail']['to'], msg.as_string())
+    smtp.sendmail(cfg_yaml['mail']['login'], cfg_yaml['mail']['to'], msg.as_string())
 
     if notify:
         msg = MIMEMultipart()
-        msg['From'] = cfg_yaml['mail']['from']
+        msg['From'] = cfg_yaml['mail']['login']
         msg['To'] = cfg_yaml['mail']['notify_to']
         msg['Date'] = formatdate(localtime=True)
         msg['Subject'] = subj
 
-        smtp.sendmail(cfg_yaml['mail']['from'], cfg_yaml['mail']['notify_to'], msg.as_string())
+        smtp.sendmail(cfg_yaml['mail']['login'], cfg_yaml['mail']['notify_to'], msg.as_string())
 
     smtp.close()
 
@@ -257,7 +217,13 @@ def process_mp(cfg, logger, sess, model, files):
 
 
 def main():
-    cfg = Configuration()
+    parser = OptionParser()
+    parser.add_option('--once', action='store_true', help='start once, only to process batch')
+    parser.add_option('--noftp', action='store_true', help='prevent loading files from FTP server (overrides config)')
+    parser.add_option('--nomail', action='store_true', help='prevent sending mail (overrides config)')
+    options, args = parser.parse_args_dict()
+
+    cfg = Configuration(options)
     logger = Logger(cfg.yaml)
     logger.log("Starting camera filter")
 

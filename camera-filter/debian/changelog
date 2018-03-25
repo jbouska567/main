@@ -2,6 +2,7 @@ zoneway-camera-filter (2.1.0) UNRELEASED; urgency=medium
 
   * expiration from cron
   * mailer service for processing feedback on predictions
+  * adding preprocessor and classifier to package
 
  -- Josef Bouska <bow.ska@seznam.cz>  Fri, 23 Mar 2018 20:45:57 +0100
 
