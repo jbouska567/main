@@ -26,8 +26,8 @@ classifier:
   n_classes: 2 # total output classes
 
 # files expiration settings
-expiration:
-  log_expire_days: 14
+#expiration:
+#  log_expire_days: 14
 
 # FTP where are images downloaded from
 ftp:

@@ -38,7 +38,7 @@ def build_dict(seq, key):
 class Logger:
     def __init__(self, cfg_yaml):
         self.log_dir = cfg_yaml['main']['log_dir']
-        self.log_expire_days = cfg_yaml['expiration']['log_expire_days']
+        #self.log_expire_days = cfg_yaml['expiration']['log_expire_days']
         self.log_file = open("%s/log" % self.log_dir, 'a')
 
     def rotate(self):
@@ -49,8 +49,8 @@ class Logger:
             strftime("%Y-%m-%d", localtime())), shell=True)
         self.log_file = open('%s/log' % self.log_dir, 'a')
         # expirace
-        subprocess.call("find %s/* -mtime +%s -exec rm {} \;" %
-            (self.log_dir, self.log_expire_days), shell=True)
+        #subprocess.call("find %s/* -mtime +%s -exec rm {} \;" %
+        #    (self.log_dir, self.log_expire_days), shell=True)
 
     def log(self, text, level="INFO"):
         line = strftime("%Y-%m-%d %H:%M:%S ", localtime()) + level + ": " + text
