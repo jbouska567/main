@@ -1,1 +1,1 @@
-#* * * * * nobody /www/temprecorder/bin/record.sh
+* * * * * root /www/temprecorder/bin/record.sh
