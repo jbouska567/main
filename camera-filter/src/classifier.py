@@ -45,10 +45,10 @@ n_classes = 2 # MNIST total classes (negative alarm, positive alarm) (pocet vyst
 
 # Parameters of learning
 learning_rate = 0.0001
-training_epochs = 2000
+training_epochs = 5000
 batch_size = 50
 eval_step = 10
-save_step = 100
+save_step = 0
 
 # Input data
 # v data path jsou ocekavany slozky se stejne velkymi obrazky
@@ -110,6 +110,7 @@ def main(argv):
     cfg = Configuration(options)
 
     learn_dir = cfg.yaml['main']['learn_dir']
+    model_dir = cfg.yaml['main']['model_dir']
     data_dir = "%s/diff-%s" % (learn_dir, image_size_x)
 
     model_name = "model-d%s-c%s-1h%s-2h%s" % (image_div, cluster_size, n_hidden_1, n_hidden_2)
@@ -155,7 +156,6 @@ def main(argv):
         end = time.time()
         print "training data complete (%s s)" % (end - start)
 
-        best_acc = 0
         # Training cycle
         for epoch in range(training_epochs):
             avg_cost = 0.
@@ -186,19 +186,21 @@ def main(argv):
                 "{:.9f}".format(avg_cost))
             if epoch % eval_step == 0:
                 train_acc = accuracy.eval({model.input_ph: train_images, y: train_labels})
-                test_acc = accuracy.eval({model.input_ph: test_images, y: test_labels})
                 print("Accuracy on train images:", train_acc)
-                print("Accuracy on test images:", test_acc)
-                if (train_acc + test_acc) > best_acc:
-                    best_acc = train_acc + test_acc
-                    saver.save(sess, "%s/%s" % (learn_dir, model_name), global_step=epoch)
-            if epoch % save_step == 0:
+                if n_test_pct:
+                    test_acc = accuracy.eval({model.input_ph: test_images, y: test_labels})
+                    print("Accuracy on test images:", test_acc)
+                    if test_acc == 1.0 or avg_cost < 1.0:
+                        break
+                elif train_acc == 1.0:
+                    break
+            if epoch and save_step and epoch % save_step == 0:
                 saver.save(sess, "%s/%s" % (learn_dir, model_name), global_step=epoch)
             # toto je tu zamerne, kvuli snizeni vytizeni procesoru
             #sleep(0.5)
         print("Optimization Finished!")
 
-        saver.save(sess, "%s/%s" % (learn_dir, model_name))
+        saver.save(sess, "%s/%s" % (model_dir, model_name))
 
         # TODO presunout do testeru
         print "prediction mismatches in test data:"
