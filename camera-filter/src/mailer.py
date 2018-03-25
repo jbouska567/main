@@ -109,7 +109,7 @@ class email_msg:
 
 class pop3_inbox:
     def __init__(self, server, userid, password):
-        self._trace=1
+        self._trace=0
         if self._trace: print "pop3_inbox.__init__-Entering"
         self.result=0             # Result of server communication
         self.messages_index=0     # Index of message for next method
@@ -226,7 +226,6 @@ def getMail(cfg):
         elif l_subj.startswith("model"):
             #TODO nahrat model a restartnou sluzbu
             print "attachments %s" % len(m.ATTACHMENTS)
-
             #if m.has_attachments():
             #    acounter=0
             #    for a in m:
@@ -235,10 +234,13 @@ def getMail(cfg):
             #        if not "diff" in a.filename:
             #            a.save(r"/home/pi/learning/%s" % tf) # select save path in ur computer
 
-    #
-    # See if I can delete all messages
-    #
-    #if inbox.msgcount: inbox.remove(range(1, inbox.msgcount+1))
+        else:
+            continue
+
+        # TODO proc to nefunguje?
+        print "deleting message"
+        inbox.remove(msgnum)
+
     inbox.close()
 
 def main(argv):
