@@ -195,10 +195,12 @@ def getMail(cfg):
         # TODO umoznit libovolny prikaz, ale na heslo
         if l_subj.startswith("cmd reboot"):
             os.system('reboot')
-        elif l_subj.startswith("re:") and "alarm" in l_subj:
+        if l_subj.startswith("cmd restart"):
+            os.system('service camera-filter restart')
+        elif l_subj.startswith("re:") and "arc" in l_subj:
             files = re.findall("ARC[0-9]*\.jpg", m.subject)
-            if len(files) < 2:
-                print "Missing files in subject, need 2 files"
+            if len(files) != 2:
+                print "Wrong count of files in subject, need exactly 2 files"
                 continue
             m.read_body()
             body_text = html2text.html2text(unicode(m.body, 'utf-8')).strip()
@@ -209,7 +211,7 @@ def getMail(cfg):
             dest = "true" if tf == "t" else "false"
             dest_dir = "%s/%s" % (data_dir, dest)
             # searching not only in alarm dir, because we need to support change location between false or true
-            for source_dir in [cfg.yaml['main']['alarm'], data_dir + "/true", data_dir + "/false"]:
+            for source_dir in [cfg.yaml['main']['alarm_dir'], data_dir + "/true", data_dir + "/false"]:
                 all_files = True
                 for f in files:
                     if not os.path.isfile("%s/%s" % (source_dir, f)):
