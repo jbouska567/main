@@ -11,7 +11,6 @@ from lib.preprocess_image import get_image_label
 import random
 from time import sleep
 import sys
-import os
 
 #TODO promenne z yml configu
 
@@ -228,9 +227,6 @@ def main(argv):
         print("Accuracy on train images:", train_acc)
         print("Accuracy on test images:", test_acc)
         print "%s/%s true and %s/%s false mismatches on test images" % (mt, dt, mf, df)
-
-        os.system('service camera-filter restart')
-        print "service camera-filter restarted"
 
 if __name__ == "__main__":
     main(sys.argv[1:])

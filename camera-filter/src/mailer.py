@@ -196,7 +196,7 @@ def getMail(cfg):
         if l_subj.startswith("cmd reboot"):
             os.system('reboot')
         if l_subj.startswith("cmd restart"):
-            os.system('service camera-filter restart')
+            os.system('/usr/sbin/service camera-filter restart')
         elif l_subj.startswith("re:") and "arc" in l_subj:
             files = re.findall("ARC[0-9]*\.jpg", m.subject)
             if len(files) != 2:
