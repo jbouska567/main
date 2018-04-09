@@ -214,7 +214,9 @@ def getMail(cfg):
             for source_dir in [cfg.yaml['main']['alarm_dir'], data_dir + "/true", data_dir + "/false"]:
                 all_files = True
                 for f in files:
-                    if not os.path.isfile("%s/%s" % (source_dir, f)):
+                    # some files are broken from camera, because they have not time in filename
+                    # (000000 at the end of filename). These files we wan't.
+                    if not os.path.isfile("%s/%s" % (source_dir, f)) or "000000." in f:
                         all_files = False
                 if all_files:
                     break
