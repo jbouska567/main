@@ -28,6 +28,7 @@ def main(argv):
     picture_dir = data_dir + "/pictures"
     tf_dirs = [ name for name in os.listdir(picture_dir) if os.path.isdir(os.path.join(picture_dir, name)) ]
 
+    new_pp_files = False
 
     for d in sorted(tf_dirs):
         out_dir = data_dir + "/diff-%s/%s" % (image_size_x, d)
@@ -60,7 +61,7 @@ def main(argv):
                 img_diff = Image.fromarray(np_img_diff, mode='L')
                 img_diff.save(diff_file)
                 print "%s written" % diff_file
-                sleep(0.5)
+                #sleep(0.5)
 
 #       # barevny 3 kanalovy diff
 #       diff_file_3 = out_dir + "/" + ("%s-diffc.png" % f2[:-4])
@@ -88,6 +89,7 @@ def main(argv):
                 npi.astype(np.uint16).tofile(f)
                 f.close()
                 print "%s written" % pp_file
+                new_pp_files = True
 
                 # kontrolni zobrazeni preprocesovaneho souboru
                 # normalizaci co rozsahu 0-255 a vykreslenim jako png
@@ -101,6 +103,8 @@ def main(argv):
 
                 #sleep(0.5)
 
+    if not new_pp_files:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
