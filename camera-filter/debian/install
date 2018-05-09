@@ -1,3 +1,4 @@
+bin/retrain.sh /www/camera-filter/bin
 src/filter.py /www/camera-filter/bin
 src/mailer.py /www/camera-filter/bin
 src/classifier.py /www/camera-filter/bin

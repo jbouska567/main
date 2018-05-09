@@ -1,3 +1,9 @@
+zoneway-camera-filter (2.2.0) UNRELEASED; urgency=medium
+
+  * retrain command in mailer
+
+ -- Josef Bouska <bow.ska@seznam.cz>  Wed, 09 May 2018 17:17:07 +0200
+
 zoneway-camera-filter (2.1.0) xenial; urgency=medium
 
   * expiration from cron

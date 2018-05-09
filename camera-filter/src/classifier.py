@@ -56,7 +56,7 @@ save_step = 0
 # slozky zacinajici na f (jako false) jsou brany jako negativni klasifikace
 # Testovaci sadu je vhodne pouzivat pro urceni nejlepsich parametru
 # Pro nauceni modelu pro provoz testovaci sadu nepotrebujeme
-n_test_pct = 0 # procent testovacich dat
+n_test_pct = 2 # procent testovacich dat
 
 y = tf.placeholder(tf.int64, shape=(None))
 
