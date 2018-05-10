@@ -8,6 +8,8 @@ import os
 import sys
 import re
 import html2text
+import logging
+from datetime import datetime
 
 # TODO cesty nacitat z konfigurace
 # TODO lepsi pojmenovani trid
@@ -69,7 +71,7 @@ class email_msg:
                 if filename: # Attached object with filename
                     attachmentnum+=1
                     self.ATTACHMENTS.append(email_attachment(attachmentnum,filename,part.get_payload(decode=1)))
-                    print "Attachment filename=%s" % filename
+                    logging.debug("Attachment filename=%s", filename)
 
                 else: # Must be body portion of multipart
                     self.body=part.get_payload(decode=True)
@@ -84,7 +86,7 @@ class email_msg:
         try: return self.msg.get(key)
         except:
             emsg="email_msg-Unable to get email key=%s information" % key
-            print emsg
+            logging.error(emsg)
             sys.exit(emsg)
 
     def has_attachments(self):
@@ -109,37 +111,36 @@ class email_msg:
 
 class pop3_inbox:
     def __init__(self, server, userid, password):
-        self._trace=0
-        if self._trace: print "pop3_inbox.__init__-Entering"
+        logging.debug("pop3_inbox.__init__-Entering")
         self.result=0             # Result of server communication
         self.messages_index=0     # Index of message for next method
         #
         # See if I can connect using information provided
         #
         try:
-            if self._trace: print "pop3_inbox.__init__-Calling poplib.POP3(server)"
+            logging.debug("pop3_inbox.__init__-Calling poplib.POP3(server)")
             self.connection=poplib.POP3_SSL(server, 995)
-            if self._trace: print "pop3_inbox.__init__-Calling connection.user(userid)"
+            logging.debug("pop3_inbox.__init__-Calling connection.user(userid)")
             self.connection.user(userid)
-            if self._trace: print "pop3_inbox.__init__-Calling connection.pass_(password)"
+            logging.debug("pop3_inbox.__init__-Calling connection.pass_(password)")
             self.connection.pass_(password)
 
         except:
-            if self._trace: print "pop3_inbox.__init__-Login failure, closing connection"
+            logging.debug("pop3_inbox.__init__-Login failure, closing connection")
             self.result=1
             self.connection.quit()
 
         #
         # Get count of messages and size of mailbox
         #
-        if self._trace: print "pop3_inbox.__init__-Calling connection.stat()"
+        logging.debug("pop3_inbox.__init__-Calling connection.stat()")
         self.msgcount, self.size=self.connection.stat()
-        if self._trace: print "pop3_inbox.__init__- stat msgcount = %s, size = %s" % (self.msgcount, self.size)
+        logging.debug("pop3_inbox.__init__- stat msgcount = %s, size = %s", self.msgcount, self.size)
         #
         # Loop over all the messages processing each one in turn
         #
 
-        if self._trace: print "pop3_inbox.__init__-Leaving"
+        logging.debug("pop3_inbox.__init__-Leaving")
         return
 
     def close(self):
@@ -152,7 +153,7 @@ class pop3_inbox:
             map(self.connection.dele, msgnumorlist)
         else:
             emsg="pop3_inbox.remove-msgnumorlist must be type int, list, or tuple, not %s" % type(msgnumorlist)
-            print emsg
+            logging.error(emsg)
             sys.exit(emsg)
 
         return
@@ -180,19 +181,18 @@ def getMail(cfg):
     inbox=pop3_inbox(cfg.yaml['mail']['pop_server'], cfg.yaml['mail']['login'], cfg.yaml['mail']['password'])
     if inbox.result:
         emsg="Connection error with pop3.."
-        print emsg
+        logging.error(emsg)
         sys.exit(emsg)
     if not inbox.msgcount:
-        emsg="no messages.."
-        print emsg
-        sys.exit(emsg)
+        logging.info("no messages..")
+        return []
 
     cmds = []
 
     for msgnum in range(1, inbox.msgcount+1):
         m = email_msg(msgnum,inbox.connection.retr(msgnum))
 
-        print m.subject
+        logging.info("Processing message with subject: '%s'", m.subject)
         l_subj = m.subject.strip().lower()
         if l_subj.startswith("cmd reboot"):
             cmds.append('reboot')
@@ -203,13 +203,13 @@ def getMail(cfg):
         elif l_subj.startswith("re:") and "arc" in l_subj:
             files = re.findall("ARC[0-9]*\.jpg", m.subject)
             if len(files) != 2:
-                print "Wrong count of files in subject, need exactly 2 files"
+                logging.warning("Wrong count of files in subject, need exactly 2 files")
                 continue
             m.read_body()
             body_text = html2text.html2text(unicode(m.body, 'utf-8')).strip()
             tf = body_text[0].lower() if body_text else ""
             if tf not in ["t", "f"]:
-                print "Neither True nor False in mail body"
+                logging.warning("Neither True nor False in mail body")
                 continue
             dest = "true" if tf == "t" else "false"
             dest_dir = "%s/%s" % (data_dir, dest)
@@ -224,18 +224,18 @@ def getMail(cfg):
                 if all_files:
                     break
             if not all_files:
-                print "Some file is missing"
+                logging.warning("Some file is missing")
                 continue
             for f in files:
                 os.rename("%s/%s" % (source_dir, f), "%s/%s" % (dest_dir, f))
         elif l_subj.startswith("model"):
             #TODO nahrat model a restartnou sluzbu
-            print "attachments %s" % len(m.ATTACHMENTS)
+            logging.debugg("attachments %s", len(m.ATTACHMENTS))
             #if m.has_attachments():
             #    acounter=0
             #    for a in m:
             #        acounter+=1
-            #        print "%i: %s" % (acounter, a.filename)
+            #        logging.debug("%s: %s", acounter, a.filename)
             #        if not "diff" in a.filename:
             #            a.save(r"/home/pi/learning/%s" % tf) # select save path in ur computer
 
@@ -243,7 +243,7 @@ def getMail(cfg):
             continue
 
         # TODO proc to nefunguje?
-        print "deleting message"
+        logging.info("deleting message")
         inbox.remove(msgnum)
 
     inbox.close()
@@ -253,13 +253,25 @@ def getMail(cfg):
 def main(argv):
     parser = OptionParser()
     options, args = parser.parse_args_dict()
-
     cfg = Configuration(options)
+
+    log_level = cfg.yaml['main']['log_level']
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % log_level)
+    logging.basicConfig(
+        filename=(cfg.yaml['main']['log_dir']+"/mailer-"+datetime.now().strftime('%Y%m%d')),
+        level=numeric_level,
+        format='%(asctime)s %(levelname)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S')
+    logging.info('Started')
 
     cmds = getMail(cfg)
 
     for cmd in cmds:
         os.system(cmd)
+
+    logging.info('Successfully finished')
 
 if __name__ == "__main__":
     main(sys.argv[1:])

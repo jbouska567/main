@@ -11,6 +11,7 @@ main:
   mail_opt: false
   ftp_opt: false
   input_batch_size: 2
+  log_level: 'INFO'
 
 classifier:
   # input image parameters
