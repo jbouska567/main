@@ -187,18 +187,19 @@ def getMail(cfg):
         print emsg
         sys.exit(emsg)
 
+    cmds = []
+
     for msgnum in range(1, inbox.msgcount+1):
         m = email_msg(msgnum,inbox.connection.retr(msgnum))
 
         print m.subject
         l_subj = m.subject.strip().lower()
-        # TODO umoznit libovolny prikaz, ale na heslo
         if l_subj.startswith("cmd reboot"):
-            os.system('reboot')
+            cmds.append('reboot')
         elif l_subj.startswith("cmd restart"):
-            os.system('/usr/sbin/service camera-filter restart')
+            cmds.append('/usr/sbin/service camera-filter restart')
         elif l_subj.startswith("cmd retrain"):
-            os.system('/www/camera-filter/bin/retrain.sh -f')
+            cmds.append('/www/camera-filter/bin/retrain.sh -f')
         elif l_subj.startswith("re:") and "arc" in l_subj:
             files = re.findall("ARC[0-9]*\.jpg", m.subject)
             if len(files) != 2:
@@ -247,14 +248,18 @@ def getMail(cfg):
 
     inbox.close()
 
+    return cmds
+
 def main(argv):
     parser = OptionParser()
     options, args = parser.parse_args_dict()
 
     cfg = Configuration(options)
 
-    getMail(cfg)
+    cmds = getMail(cfg)
 
+    for cmd in cmds:
+        os.system(cmd)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
