@@ -1,4 +1,4 @@
-*/5 * * * * root /www/camera-filter/bin/mailer.py -f /www/camera-filter/conf/camera-filter.yml >> /www/camera-filter/log/mailer-"$(date +\%Y\%m\%d)".log
+*/5 * * * * root /www/camera-filter/bin/mailer.py -f /www/camera-filter/conf/camera-filter.yml
 
 0 20 * * * root /www/camera-filter/bin/retrain.sh
 

@@ -260,7 +260,7 @@ def main(argv):
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: %s' % log_level)
     logging.basicConfig(
-        filename=(cfg.yaml['main']['log_dir']+"/mailer-"+datetime.now().strftime('%Y%m%d')),
+        filename=(cfg.yaml['main']['log_dir']+"/mailer-"+datetime.now().strftime('%Y%m%d')+".log"),
         level=numeric_level,
         format='%(asctime)s %(levelname)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S')
