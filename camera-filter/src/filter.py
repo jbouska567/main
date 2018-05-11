@@ -34,7 +34,7 @@ def build_dict(seq, key):
     return dict((d[key], dict(d, index=index)) for (index, d) in enumerate(seq))
 
 
-#TODO nejake standardni logovani
+#TODO nejake standardni logovani (python logging + logrotate + WatchedFileHandler)
 class Logger:
     def __init__(self, cfg_yaml):
         self.log_dir = cfg_yaml['main']['log_dir']

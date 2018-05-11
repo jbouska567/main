@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
+from datetime import datetime
 import numpy as np
 import subprocess
 import os
 from lib.config import OptionParser, Configuration
 from lib.preprocess_image import difference_image, read_preprocess_image
+import logging
 from PIL import Image
 from time import sleep
 import sys
@@ -23,12 +25,20 @@ def main(argv):
 
     cfg = Configuration(options)
 
+    logging.basicConfig(
+        filename=(cfg.yaml['main']['log_dir']+"/preprocessor-"+datetime.now().strftime('%Y%m%d')+".log"),
+        level=cfg.log_level,
+        format='%(asctime)s %(levelname)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S')
+    logging.info('Started')
+
     data_dir = cfg.yaml['main']['learn_dir']
 
     picture_dir = data_dir + "/pictures"
     tf_dirs = [ name for name in os.listdir(picture_dir) if os.path.isdir(os.path.join(picture_dir, name)) ]
 
-    new_pp_files = False
+    total_pp_files = 0
+    new_pp_files = 0
 
     for d in sorted(tf_dirs):
         out_dir = data_dir + "/diff-%s/%s" % (image_size_x, d)
@@ -40,14 +50,14 @@ def main(argv):
         files = [ name for name in os.listdir(in_dir) if os.path.isfile(os.path.join(in_dir, name)) ]
         it = iter(sorted(files))
         for f1, f2 in zip(it, it):
-            print "Processing files %s %s" % (f1, f2)
+            logging.debug("Processing files %s %s", f1, f2)
             df1 = in_dir + "/" + f1
             df2 = in_dir + "/" + f2
 
             # cernobily 1 kanalovy diff
             diff_file = out_dir + "/" + ("%s-diff2.png" % f2[:-4])
             if os.path.exists(diff_file):
-                print diff_file + " already exists"
+                logging.debug("%s already exists", diff_file)
             else:
                 img1 = Image.open(df1)
                 img2 = Image.open(df2)
@@ -60,13 +70,13 @@ def main(argv):
                 np_img_diff = difference_image(np_img1, np_img2)
                 img_diff = Image.fromarray(np_img_diff, mode='L')
                 img_diff.save(diff_file)
-                print "%s written" % diff_file
+                logging.info("%s written", diff_file)
                 #sleep(0.5)
 
 #       # barevny 3 kanalovy diff
 #       diff_file_3 = out_dir + "/" + ("%s-diffc.png" % f2[:-4])
 #       if os.path.exists(diff_file_3):
-#           print diff_file_3 + " already exists"
+#           logging.debug("%s already exists", diff_file_3)
 #       else:
 #           img1 = Image.open(df1)
 #           img2 = Image.open(df2)
@@ -77,19 +87,19 @@ def main(argv):
 #           np_img_diff = difference_image(np_img1, np_img2)
 #           img_diff = Image.fromarray(np_img_diff)
 #           img_diff.save(diff_file_3)
-#           print "%s written" % diff_file_3
+#           logging.info("%s written", diff_file_3)
 
 
             pp_file = out_dir + "/" + ("%s-c%s.pp" % (f2[:-4], cluster_size))
             if os.path.exists(pp_file):
-                print pp_file + " already exists"
+                logging.debug("%s already exists", pp_file)
             else:
                 npi = read_preprocess_image(diff_file, cluster_size)
                 f = open(pp_file, "w")
                 npi.astype(np.uint16).tofile(f)
                 f.close()
-                print "%s written" % pp_file
-                new_pp_files = True
+                logging.info("%s written", pp_file)
+                new_pp_files += 1
 
                 # kontrolni zobrazeni preprocesovaneho souboru
                 # normalizaci co rozsahu 0-255 a vykreslenim jako png
@@ -102,10 +112,14 @@ def main(argv):
                     png.save(pp_file + ".png")
 
                 #sleep(0.5)
+            total_pp_files += 1
+
+    logging.info("Found %s new diff files", new_pp_files)
+    logging.info("Found %s total diff files", total_pp_files)
 
     if not new_pp_files:
+        logging.info("No now diff files found")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main(sys.argv[1:])

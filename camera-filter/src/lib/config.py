@@ -1,3 +1,4 @@
+import logging
 from optparse import OptionParser as BaseParser
 import yaml
 
@@ -20,6 +21,12 @@ class Configuration:
 
         stream = open(config_file)
         self.yaml = yaml.load(stream)
+
+        log_level = self.yaml['main']['log_level']
+        self.log_level = getattr(logging, log_level.upper(), None)
+        if not isinstance(self.log_level, int):
+            raise ValueError('Invalid log level: %s' % log_level)
+
         self.once_opt = ('once' in options) and (options['once'] is True)
         self.ftp_opt = self.yaml['main']['ftp_opt']
         if 'noftp' in options and options['noftp']:

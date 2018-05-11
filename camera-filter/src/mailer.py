@@ -230,7 +230,7 @@ def getMail(cfg):
                 os.rename("%s/%s" % (source_dir, f), "%s/%s" % (dest_dir, f))
         elif l_subj.startswith("model"):
             #TODO nahrat model a restartnou sluzbu
-            logging.debugg("attachments %s", len(m.ATTACHMENTS))
+            logging.debug("attachments %s", len(m.ATTACHMENTS))
             #if m.has_attachments():
             #    acounter=0
             #    for a in m:
@@ -255,13 +255,9 @@ def main(argv):
     options, args = parser.parse_args_dict()
     cfg = Configuration(options)
 
-    log_level = cfg.yaml['main']['log_level']
-    numeric_level = getattr(logging, log_level.upper(), None)
-    if not isinstance(numeric_level, int):
-        raise ValueError('Invalid log level: %s' % log_level)
     logging.basicConfig(
         filename=(cfg.yaml['main']['log_dir']+"/mailer-"+datetime.now().strftime('%Y%m%d')+".log"),
-        level=numeric_level,
+        level=cfg.log_level,
         format='%(asctime)s %(levelname)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S')
     logging.info('Started')
