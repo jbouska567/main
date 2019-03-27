@@ -4,6 +4,7 @@ zoneway-camera-filter (2.2.0) UNRELEASED; urgency=medium
   * postponed commands in mailer
   * sane logging in mailer
   * sane logging in preprocessor
+  * notify if address exists
 
  -- Josef Bouska <bow.ska@seznam.cz>  Wed, 09 May 2018 17:17:07 +0200
 
