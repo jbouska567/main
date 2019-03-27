@@ -147,7 +147,7 @@ def send_mail(logger, cfg_yaml, subj, text, files=None, notify=False):
 
     smtp.sendmail(cfg_yaml['mail']['login'], cfg_yaml['mail']['to'], msg.as_string())
 
-    if notify:
+    if notify and cfg_yaml['mail']['notify_to']:
         msg = MIMEMultipart()
         msg['From'] = cfg_yaml['mail']['login']
         msg['To'] = cfg_yaml['mail']['notify_to']
